@@ -82,10 +82,10 @@ def dashboard():
     # Presupuestos del mes
     budgets = []
     c.execute("""
-        SELECT b.limit, c.name, c.color
+        SELECT b.limit_val, c.name, c.color
         FROM budgets b
         JOIN categories c ON b.category_id = c.id
-        WHERE b.month = ?
+        WHERE b.month_col = ?
     """, (month_start[:7],))
     for b in c.fetchall():
         c.execute("""
@@ -94,12 +94,12 @@ def dashboard():
             WHERE t.kind='expense' AND t.category_id = ? AND t.date >= ? AND t.date <= ?
         """, (c.execute("SELECT id FROM categories WHERE name = ?", (b['name'],)).fetchone()['id'], month_start, month_end))
         spent = c.fetchone()[0]
-        if b['limit'] > 0:
-            pct = (spent / b['limit']) * 100
+        if b['limit_val'] > 0:
+            pct = (spent / b['limit_val']) * 100
             budgets.append({
                 'name': b['name'],
                 'color': b['color'],
-                'limit': b['limit'],
+                'limit': b['limit_val'],
                 'spent': spent,
                 'pct': pct,
                 'over': pct > 100

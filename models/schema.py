@@ -85,8 +85,8 @@ def init_db():
     CREATE TABLE IF NOT EXISTS budgets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         category_id INTEGER REFERENCES categories(id),
-        month DATE,
-        limit REAL
+        month_col TEXT,
+        limit_val REAL
     );
 
     CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(date);
