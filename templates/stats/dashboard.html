@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-3xl mb-6">📊 Dashboard</h1>
+
+<!-- Resumen del mes -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-600 mb-2">Gasto este mes</h2>
+        <p class="text-4xl font-bold text-blue-600">{{ "%.2f"|format(total_mes) }}€</p>
+    </div>
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-600 mb-2">Mes anterior</h2>
+        <p class="text-4xl font-bold text-gray-600">{{ "%.2f"|format(total_anterior) }}€</p>
+        {% if total_mes > 0 and total_anterior > 0 %}
+        <p class="text-sm mt-1 {% if total_mes > total_anterior %}text-red-600{% else %}text-green-600{% endif %}">
+            {% if total_mes > total_anterior %}
+            ↑ {{ "%.0f"|format((total_mes - total_anterior) / total_anterior * 100) }}% vs mes anterior
+            {% else %}
+            ↓ {{ "%.0f"|format((total_anterior - total_mes) / total_anterior * 100) }}% vs mes anterior
+            {% endif %}
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Presupuestos -->
+{% if budgets %}
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-bold mb-4">Presupuestos del mes</h2>
+    <div class="space-y-3">
+        {% for b in budgets %}
+        <div>
+            <div class="flex justify-between mb-1">
+                <span class="flex items-center gap-2">
+                    <span class="w-3 h-3 rounded-full" style="background: {{ b.color }}"></span>
+                    <span class="font-medium">{{ b.name }}</span>
+                </span>
+                <span class="text-sm {% if b.over %}text-red-600 font-bold{% else %}text-gray-600{% endif %}">
+                    {{ "%.2f"|format(b.spent) }}€ / {{ "%.2f"|format(b.limit) }}€
+                    ({{ "%.0f"|format(b.pct) }}%)
+                </span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div class="h-3 rounded-full {% if b.over %}bg-red-500{% elif b.pct > 80 %}bg-yellow-500{% else %}bg-green-500{% endif %}"
+                     style="width: {{ [b.pct, 100]|min }}%"></div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Por categoría -->
+{% if por_categoria %}
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-bold mb-4">Gasto por categoría</h2>
+    <div class="space-y-3">
+        {% for cat in por_categoria %}
+        <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <span class="w-4 h-4 rounded-full" style="background: {{ cat['color'] }}"></span>
+                <span class="font-medium">{{ cat['name'] }}</span>
+            </div>
+            <span class="font-bold">{{ "%.2f"|format(cat[2]) }}€</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Últimos gastos -->
+{% if ultimos %}
+<div class="bg-white rounded-lg shadow p-6 mb-8">
+    <h2 class="text-xl font-bold mb-4">Últimos gastos</h2>
+    <div class="space-y-2">
+        {% for exp in ultimos %}
+        <a href="/expense/{{ exp['id'] }}" class="flex justify-between items-center py-2 border-b hover:bg-gray-50 px-2 rounded">
+            <div>
+                <span class="font-medium">{{ exp['merchant_name'] or exp['description'] or '(sin descripción)' }}</span>
+                <span class="text-sm text-gray-500 ml-2">{{ exp['date'] }}</span>
+            </div>
+            <span class="font-bold">{{ "%.2f"|format(exp['total']) }}€</span>
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Acciones rápidas -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+    <a href="/scan" class="bg-blue-600 hover:bg-blue-700 text-white text-center py-6 rounded-lg font-bold text-lg">
+        📷 Subir ticket
+    </a>
+    <a href="/expenses" class="bg-white hover:bg-gray-50 text-gray-700 text-center py-6 rounded-lg shadow font-bold text-lg">
+        📋 Historial
+    </a>
+    <a href="/import-excel" class="bg-white hover:bg-gray-50 text-gray-700 text-center py-6 rounded-lg shadow font-bold text-lg">
+        📥 Importar Excel
+    </a>
+    <a href="/export-excel" class="bg-white hover:bg-gray-50 text-gray-700 text-center py-6 rounded-lg shadow font-bold text-lg">
+        📤 Exportar Excel
+    </a>
+</div>
+{% endblock %}

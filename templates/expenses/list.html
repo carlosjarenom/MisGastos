@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<h1 class="text-2xl mb-6">📋 Historial de gastos</h1>
+
+<!-- Filtros -->
+<div class="bg-white rounded-lg shadow p-4 mb-6">
+    <form method="GET" action="/expenses" class="flex gap-4 flex-wrap">
+        <div>
+            <label class="block text-sm font-semibold">Mes</label>
+            <input type="month" name="month" class="border rounded p-2" value="{{ request.args.get('month', '') }}">
+        </div>
+        <div>
+            <label class="block text-sm font-semibold">Categoría</label>
+            <select name="category" class="border rounded p-2">
+                <option value="">Todas</option>
+                {% for cat in categories %}
+                <option value="{{ cat.id }}" {% if request.args.get('category') == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="flex items-end">
+            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded font-bold">Filtrar</button>
+        </div>
+    </form>
+</div>
+
+<!-- Lista -->
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    {% if expenses %}
+    <table class="w-full">
+        <thead class="bg-gray-100">
+            <tr>
+                <th class="text-left p-3">Fecha</th>
+                <th class="text-left p-3">Comercio</th>
+                <th class="text-left p-3">Categoría</th>
+                <th class="text-right p-3">Total</th>
+                <th class="text-center p-3">Acciones</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exp in expenses %}
+            <tr class="border-b hover:bg-gray-50">
+                <td class="p-3">{{ exp.date }}</td>
+                <td class="p-3">
+                    <a href="/expense/{{ exp.id }}" class="text-blue-600 hover:underline">
+                        {{ exp.merchant_name or exp.description or '(sin descripción)' }}
+                    </a>
+                </td>
+                <td class="p-3">{{ exp.category_name or '-' }}</td>
+                <td class="p-3 text-right font-bold">{{ "%.2f"|format(exp.total) }}€</td>
+                <td class="p-3 text-center">
+                    <a href="/expense/{{ exp.id }}/edit" class="text-blue-600 hover:underline mr-2" title="Editar">✏️</a>
+                    <form method="POST" action="/expense/{{ exp.id }}/delete" class="inline" onsubmit="return confirm('¿Borrar este gasto?')">
+                        <button type="submit" class="text-red-600 hover:underline" title="Borrar">🗑️</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="text-center py-12 text-gray-500">
+        <p class="text-xl">No hay gastos registrados aún</p>
+        <a href="/scan" class="text-blue-600 hover:underline mt-2 inline-block">📷 Sube tu primer ticket</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

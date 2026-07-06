@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+    <a href="/" class="text-blue-600 hover:underline">← Volver al dashboard</a>
+</div>
+
+<h1 class="text-2xl mb-6">📥 Importar Excel</h1>
+
+{% if result %}
+<div class="bg-white rounded-lg shadow p-6 mb-6">
+    <h2 class="text-xl font-bold mb-4">Resultado de importación</h2>
+    <div class="grid grid-cols-2 gap-4">
+        <div class="bg-green-50 p-4 rounded">
+            <p class="text-sm text-gray-600">Importados</p>
+            <p class="text-2xl font-bold text-green-600">{{ result.imported }}</p>
+        </div>
+        <div class="bg-red-50 p-4 rounded">
+            <p class="text-sm text-gray-600">Saltados</p>
+            <p class="text-2xl font-bold text-red-600">{{ result.skipped }}</p>
+        </div>
+    </div>
+    {% if result.errors %}
+    <div class="mt-4">
+        <p class="font-semibold text-red-600">Errores (primos 10):</p>
+        <ul class="list-disc ml-6 text-sm text-red-700">
+            {% for err in result.errors[:10] %}
+            <li>{{ err }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="bg-white rounded-lg shadow p-8">
+    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+        <div>
+            <label class="block text-lg font-semibold mb-2">Selecciona archivo Excel</label>
+            <input type="file" name="file" accept=".xlsx,.xls"
+                   class="w-full border rounded p-3" required>
+            <p class="text-sm text-gray-500 mt-1">Formatos soportados: .xlsx, .xls</p>
+        </div>
+
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded font-bold text-lg">
+            📥 Importar
+        </button>
+    </form>
+
+    <div class="mt-6 p-4 bg-blue-50 rounded">
+        <p class="font-semibold text-blue-800">Formato esperado del Excel:</p>
+        <ul class="list-disc ml-6 text-sm text-blue-700 mt-2">
+            <li>Fila 1: encabezados (se saltan)</li>
+            <li>Columnas con fecha, descripción, importe, método de pago</li>
+            <li>Fechas en formato DD/MM/AAAA o YYYY-MM-DD</li>
+            <li>Importes con separador decimal punto o coma</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

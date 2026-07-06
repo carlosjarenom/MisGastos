@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MisGastos</title>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Fuentes más grandes para tablet */
+        body { font-size: 18px; }
+        input, select, button { font-size: 18px; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-white shadow p-4 mb-6">
+        <div class="max-w-4xl mx-auto flex flex-wrap items-center gap-4">
+            <a href="/" class="text-xl font-bold">💸 MisGastos</a>
+            <a href="/scan" class="text-blue-600 hover:underline">📷 Nuevo ticket</a>
+            <a href="/expenses" class="text-blue-600 hover:underline">📋 Historial</a>
+            {% if review_queue_count > 0 %}
+            <a href="/scan/review-queue" class="text-red-600 font-bold hover:underline">
+                ⚠️ Revisar ({{ review_queue_count }})
+            </a>
+            {% endif %}
+        </div>
+    </nav>
+    <main class="max-w-4xl mx-auto px-4 pb-12">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>

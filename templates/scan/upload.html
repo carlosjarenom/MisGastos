@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center">
+    <h1 class="text-3xl mb-6">📷 Nuevo ticket</h1>
+
+    <form hx-post="/scan/upload"
+          hx-encoding="multipart/form-data"
+          hx-target="#result"
+          hx-swap="innerHTML"
+          class="border-2 border-dashed border-gray-300 rounded-lg p-12 bg-white">
+
+        <input type="file" name="image" accept="image/*" capture="environment"
+               class="hidden" id="file-input">
+
+        <button type="button"
+                onclick="document.getElementById('file-input').click()"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-8 py-6 rounded-lg text-xl font-bold">
+            📷 Hacer foto al ticket
+        </button>
+
+        <p class="mt-4 text-gray-500">o arrastra una imagen aquí</p>
+        <p class="mt-2 text-sm text-amber-600">
+            ℹ️ Asegúrate de que la foto sea clara y el ticket esté lo más liso posible
+        </p>
+    </form>
+
+    <div id="result" class="mt-8"></div>
+</div>
+
+<script>
+    document.getElementById('file-input').addEventListener('change', function() {
+        this.closest('form').requestSubmit();
+    });
+</script>
+{% endblock %}

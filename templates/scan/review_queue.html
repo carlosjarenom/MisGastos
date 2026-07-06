@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+    <a href="/scan" class="text-blue-600 hover:underline">← Volver a subir tickets</a>
+</div>
+
+<h1 class="text-2xl mb-6">⚠️ Tickets para revisar ({{ scans|length }})</h1>
+
+<p class="text-gray-600 mb-4">
+    Estos tickets no se han guardado porque el sistema no está seguro de los datos.
+    Revísalos cuando tengas tiempo.
+</p>
+
+{% if scans %}
+<div class="space-y-4">
+    {% for scan in scans %}
+    <div class="bg-white rounded shadow p-4">
+        <div class="flex items-start justify-between">
+            <div>
+                <p class="font-bold text-lg">
+                    {% if scan.raw_output %}
+                    {{ '(comercio por revisar)' }}
+                    {% else %}
+                    (sin datos)
+                    {% endif %}
+                </p>
+                <p class="text-sm text-gray-600">
+                    ID: {{ scan.id }} ·
+                    {% if scan.confidence %}
+                    Confianza: {{ "%.0f"|format(scan.confidence * 100) }}%
+                    {% endif %}
+                </p>
+                <p class="text-xs text-gray-400 mt-1">
+                    Escaneado: {{ scan.created_at or 'desconocido' }}
+                </p>
+            </div>
+            <div class="flex gap-2">
+                <a href="/scan"
+                   class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded font-bold text-sm">
+                    📷 Resubir
+                </a>
+                <form method="POST" action="/scan/{{ scan.id }}/discard" class="inline">
+                    <button type="submit"
+                            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded font-bold text-sm">
+                        🗑️ Descartar
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+    <p class="text-4xl mb-4">🎉</p>
+    <p class="text-xl">No hay tickets pendientes de revisión</p>
+</div>
+{% endif %}
+{% endblock %}
