@@ -206,7 +206,7 @@ def scan_upload():
     all_categories = []
     from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
     for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
-        all_categories.append({'id': cat[0], 'name': cat[1]})
+        all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
     return render_template(
         "scan/edit.html",
