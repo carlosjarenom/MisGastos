@@ -85,9 +85,10 @@
         <div>
             <label class="block text-sm font-semibold">Categoría</label>
             <select name="category" class="w-full border rounded p-2" id="input-category">
-                {% for cat_id in [1,2,3,4,5,6,7,8,9,10] %}
-                {% set names = {1:'Comida', 2:'Farmacia', 3:'Limpieza/Hogar', 4:'Transporte', 5:'Cuidado personal', 6:'Educación', 7:'Ocio', 8:'Servicios', 9:'Otros', 10:'Mixto'} %}
-                <option value="{{ cat_id }}" {% if auto_category == cat_id %}selected{% endif %}>{{ names[cat_id] }}</option>
+                {% for cat in all_categories %}
+                <option value="{{ cat.id }}" {% if auto_category == cat.id %}selected{% endif %}>
+                    {% if cat.parent_id %}  ↳ {{ cat.name }}{% else %}{{ cat.name }}{% endif %}
+                </option>
                 {% endfor %}
             </select>
         </div>
