@@ -5,6 +5,7 @@ Contabilización de gastos familiares para Sonia
 import os
 import uuid
 import json
+import calendar
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -41,8 +42,9 @@ def dashboard():
     c = conn.cursor()
 
     now = date.today()
+    last_day = calendar.monthrange(now.year, now.month)[1]
     month_start = f"{now.year}-{now.month:02d}-01"
-    month_end = f"{now.year}-{now.month:02d}-31"
+    month_end = f"{now.year}-{now.month:02d}-{last_day:02d}"
 
     # Gastos del mes
     c.execute(
