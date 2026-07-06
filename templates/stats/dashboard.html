@@ -78,7 +78,7 @@
         <a href="/expense/{{ exp['id'] }}" class="flex justify-between items-center py-2 border-b hover:bg-gray-50 px-2 rounded">
             <div>
                 <span class="font-medium">{{ exp['merchant_name'] or exp['description'] or '(sin descripción)' }}</span>
-                <span class="text-sm text-gray-500 ml-2">{{ exp['date'] }}</span>
+                <span class="text-sm text-gray-500 ml-2">{{ exp['date'] | format_date_es }}</span>
             </div>
             <span class="font-bold">{{ "%.2f"|format(exp['total']) }}€</span>
         </a>

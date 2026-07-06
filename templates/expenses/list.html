@@ -42,7 +42,7 @@
         <tbody>
             {% for exp in expenses %}
             <tr class="border-b hover:bg-gray-50">
-                <td class="p-3">{{ exp.date }}</td>
+                <td class="p-3">{{ exp.date | format_date_es }}</td>
                 <td class="p-3">
                     <a href="/expense/{{ exp.id }}" class="text-blue-600 hover:underline">
                         {{ exp.merchant_name or exp.description or '(sin descripción)' }}

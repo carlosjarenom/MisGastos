@@ -21,7 +21,7 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
             <span class="text-gray-500">Fecha</span>
-            <p class="font-medium">{{ txn.date }}</p>
+            <p class="font-medium">{{ txn.date | format_date_es }}</p>
         </div>
         <div>
             <span class="text-gray-500">Categoría</span>
@@ -68,7 +68,7 @@
             <tr>
                 <td class="p-2" colspan="3">Total</td>
                 <td class="p-2 text-right">
-                    {{ "%.2f"|format(sum([item.unit_price * item.quantity for item in items])) }}€
+                    {{ "%.2f"|format(items_total) }}€
                 </td>
             </tr>
         </tfoot>

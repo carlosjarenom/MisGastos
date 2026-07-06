@@ -23,6 +23,32 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 
 # ============================================================
+# JINJA FILTERS
+# ============================================================
+
+MESES_ES = [
+    'ene', 'feb', 'mar', 'abr', 'may', 'jun',
+    'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
+]
+
+
+@app.template_filter('format_date_es')
+def format_date_es(value):
+    """Convert 'YYYY-MM-DD' → '6 jul 2026'. Acepta str o datetime."""
+    if not value:
+        return ''
+    if isinstance(value, str):
+        value = value.split('T')[0]  # quitar hora si existe
+    if isinstance(value, datetime):
+        return f"{value.day} {MESES_ES[value.month - 1]} {value.year}"
+    try:
+        d = datetime.strptime(value, '%Y-%m-%d')
+        return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
+    except (ValueError, TypeError):
+        return value
+
+
+# ============================================================
 # INICIALIZACIÓN
 # ============================================================
 
@@ -412,6 +438,7 @@ def expense_detail(txn_id):
     # Items
     c.execute("SELECT * FROM transaction_items WHERE transaction_id = ? ORDER BY id", (txn_id,))
     items = c.fetchall()
+    items_total = sum(item['unit_price'] * item['quantity'] for item in items)
 
     # Categorías (para edición)
     c.execute("SELECT id, name FROM categories WHERE parent_id IS NULL ORDER BY name")
@@ -427,6 +454,7 @@ def expense_detail(txn_id):
         "expenses/detail.html",
         txn=txn,
         items=items,
+        items_total=items_total,
         categories=categories,
         review_queue_count=review_count,
     )
