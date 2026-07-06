@@ -375,7 +375,7 @@ def expenses():
     expenses_list = c.fetchall()
 
     # Categorías para filtro
-    c.execute("SELECT id, name FROM categories WHERE parent_id IS NULL ORDER BY name")
+    c.execute("SELECT id, name, color FROM categories WHERE parent_id IS NULL ORDER BY name")
     categories = c.fetchall()
 
     # Cola de revisión
