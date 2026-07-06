@@ -527,9 +527,10 @@ def review_queue():
     c = conn.cursor()
     c.execute("SELECT * FROM scans WHERE status = 'pending' ORDER BY confidence ASC")
     scans = c.fetchall()
+    review_count = len(scans)
     conn.close()
 
-    return render_template("scan/review_queue.html", scans=scans, review_queue_count=len(scans))
+    return render_template("scan/review_queue.html", scans=scans, review_queue_count=review_count)
 
 
 @app.route("/scan/<int:scan_id>/discard", methods=["POST"])
