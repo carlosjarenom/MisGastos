@@ -83,13 +83,21 @@
 
         <!-- Categoría -->
         <div>
-            <label class="block text-sm font-semibold">Categoría</label>
-            <select name="category" class="w-full border rounded p-2" id="input-category">
-                {% for cat_id in [1,2,3,4,5,6,7,8,9,10] %}
-                {% set names = {1:'Comida', 2:'Farmacia', 3:'Limpieza/Hogar', 4:'Transporte', 5:'Cuidado personal', 6:'Educación', 7:'Ocio', 8:'Servicios', 9:'Otros', 10:'Mixto'} %}
-                <option value="{{ cat_id }}" {% if auto_category == cat_id %}selected{% endif %}>{{ names[cat_id] }}</option>
+            <label class="block text-sm font-semibold mb-2">Categoría</label>
+            <input type="hidden" name="category" id="input-category" value="{{ auto_category or 9 }}">
+            <div class="grid grid-cols-5 gap-2" id="category-grid">
+                {% for cat in all_categories %}
+                <button type="button"
+                        data-cat-id="{{ cat.id }}"
+                        onclick="selectCategory({{ cat.id }}, this)"
+                        class="cat-btn text-xs py-2 px-1 rounded font-bold text-white transition-all
+                               {% if auto_category == cat.id %}ring-2 ring-black ring-offset-1 scale-105{% endif %}"
+                        style="background: {{ cat.color }};{% if cat.parent_id %} opacity:0.85;{% endif %}">
+                    {{ cat.name }}
+                </button>
                 {% endfor %}
-            </select>
+            </div>
+            <p class="text-xs text-gray-500 mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
         </div>
 
         <!-- Items -->
@@ -158,8 +166,21 @@
         document.getElementById('save-total').value = e.target.value);
     document.getElementById('input-payment').addEventListener('change', e =>
         document.getElementById('save-payment').value = e.target.value);
-    document.getElementById('input-category').addEventListener('change', e =>
-        document.getElementById('save-category').value = e.target.value);
+
+    // Category button grid
+    function selectCategory(catId, btn) {
+        // Update hidden input
+        document.getElementById('input-category').value = catId;
+        document.getElementById('save-category').value = catId;
+        // Update visual selection
+        document.querySelectorAll('.cat-btn').forEach(b => {
+            b.classList.remove('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
+        });
+        btn.classList.add('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
+        // Update label
+        const name = btn.textContent.trim();
+        document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
+    }
 
     function validateForm() {
         const total = parseFloat(document.getElementById('save-total').value);
