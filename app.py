@@ -193,11 +193,24 @@ def scan_upload():
         VALUES (?, ?, ?, ?, ?)
     """, ("qwen3.5:9b", result.raw_output, result.overall_confidence, result.duration_ms, status))
     scan_id = c.lastrowid
+
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+
     conn.commit()
     conn.close()
 
+    base_template = "partial.html" if "HX-Request" in request.headers or "Hx-Request" in request.headers else "base.html"
+
+    # Todas las categorías disponibles
+    all_categories = []
+    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
+    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+        all_categories.append({'id': cat[0], 'name': cat[1]})
+
     return render_template(
         "scan/edit.html",
+        base_template=base_template,
         scan_id=scan_id,
         image_filename=original_filename,
         fecha=result.fecha,
@@ -209,7 +222,9 @@ def scan_upload():
         overall_confidence=result.overall_confidence,
         field_confidence=result.field_confidence,
         auto_category=auto_cat_id,
+        all_categories=all_categories,
         error=result.error,
+        review_queue_count=review_count,
     )
 
 
