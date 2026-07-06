@@ -16,9 +16,17 @@
     <p class="text-red-700">{{ error }}</p>
 </div>
 {% else %}
+<form method="POST" action="/scan/save" onsubmit="return validateForm()" id="save-form">
+
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div>
+        {% if image_filename %}
         <img src="/scan/image/{{ image_filename }}" class="w-full rounded shadow" style="max-height: 500px; object-fit: contain;">
+        {% else %}
+        <div class="w-full rounded shadow bg-gray-100 flex items-center justify-center" style="max-height: 500px;">
+            <p class="text-gray-500">Imagen no disponible</p>
+        </div>
+        {% endif %}
         <p class="text-sm text-gray-500 mt-2">
             Confianza general: {{ "%.0f"|format(overall_confidence * 100) }}%
         </p>
@@ -33,7 +41,7 @@
                     ({{ "%.0f"|format(field_confidence.get('fecha', 0) * 100) }}%)
                 </span>
             </label>
-            <input type="date" name="date" value="{{ fecha }}"
+            <input type="date" value="{{ fecha }}"
                    class="w-full border rounded p-2" id="input-date">
         </div>
 
@@ -45,7 +53,7 @@
                     ({{ "%.0f"|format(field_confidence.get('comercio', 0) * 100) }}%)
                 </span>
             </label>
-            <input type="text" name="merchant" value="{{ comercio or '' }}"
+            <input type="text" value="{{ comercio or '' }}"
                    class="w-full border rounded p-2" id="input-merchant">
         </div>
 
@@ -53,7 +61,7 @@
         {% if nif %}
         <div>
             <label class="block text-sm font-semibold text-gray-500">NIF detectado</label>
-            <input type="text" name="nif" value="{{ nif }}"
+            <input type="text" value="{{ nif }}"
                    class="w-full border rounded p-2 bg-gray-50" id="input-nif">
         </div>
         {% endif %}
@@ -66,14 +74,14 @@
                     ({{ "%.0f"|format(field_confidence.get('total', 0) * 100) }}%)
                 </span>
             </label>
-            <input type="number" step="0.01" name="total" value="{{ total or '' }}"
+            <input type="number" step="0.01" value="{{ total or '' }}"
                    class="w-full border rounded p-2 text-xl font-bold" id="input-total">
         </div>
 
         <!-- Método de pago -->
         <div>
             <label class="block text-sm font-semibold">Método de pago</label>
-            <select name="payment_method" class="w-full border rounded p-2" id="input-payment">
+            <select class="w-full border rounded p-2" id="input-payment">
                 <option value="">—</option>
                 <option value="Efectivo" {% if metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
                 <option value="Tarjeta" {% if metodo_pago == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
@@ -129,8 +137,7 @@
     </div>
 </div>
 
-<!-- Formulario de guardado (oculto, campos sync) -->
-<form method="POST" action="/scan/save" onsubmit="return validateForm()" id="save-form">
+    <!-- Hidden fields para submit -->
     <input type="hidden" name="scan_id" value="{{ scan_id }}">
     <input type="hidden" name="date" id="save-date" value="{{ fecha }}">
     <input type="hidden" name="merchant" id="save-merchant" value="{{ comercio or '' }}">
@@ -142,17 +149,16 @@
     <input type="hidden" name="ocr_confidence" value="{{ overall_confidence }}">
     <input type="hidden" name="field_confidence" value='{{ field_confidence | tojson }}'>
 
+    <div class="mt-6 space-y-2">
+        <button type="submit"
+                class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded font-bold">
+            ✅ Guardar
+        </button>
+        <a href="/scan" class="block text-center text-gray-600 py-1.5 hover:underline text-sm">
+            ← Volver a subir tickets
+        </a>
+    </div>
 </form>
-
-<div class="mt-6 space-y-2">
-    <button type="submit" form="save-form"
-            class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded font-bold">
-        ✅ Guardar
-    </button>
-    <a href="/scan" class="block text-center text-gray-600 py-1.5 hover:underline text-sm">
-        ← Volver a subir tickets
-    </a>
-</div>
 {% endif %}
 
 <script>

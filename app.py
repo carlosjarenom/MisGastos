@@ -521,6 +521,9 @@ def edit_expense(txn_id):
         c.execute("SELECT id FROM merchants WHERE name = ?", (new_merchant,))
         mrow = c.fetchone()
         if mrow:
+            # Si el merchant encontrado es distinto al actual, reasignar
+            if mrow['id'] != txn['merchant_id']:
+                c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (mrow['id'], txn_id))
             if new_nif and not txn['merchant_nif']:
                 c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (new_nif, mrow['id']))
         else:
@@ -625,11 +628,26 @@ def edit_pending_scan(scan_id):
     except json.JSONDecodeError:
         data = {}
 
-    # Auto-clasificar
-    auto_cat_id = 9  # Otros por defecto
+    # Auto-clasificar — cascada completa (igual que scan_upload)
+    auto_cat_id = None
+    comercio = data.get("comercio")
     items = data.get("items", [])
-    if items:
+
+    # Nivel 1: merchant conocido
+    if comercio:
+        c2 = conn.cursor()
+        c2.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
+        mrow = c2.fetchone()
+        if mrow and mrow['default_category_id']:
+            auto_cat_id = mrow['default_category_id']
+
+    # Nivel 2: heurística por items
+    if auto_cat_id is None and items:
         auto_cat_id, _ = clasificar_por_items(items)
+
+    # Nivel 3: fallback
+    if auto_cat_id is None:
+        auto_cat_id = 9  # Otros
 
     # Todas las categorías disponibles
     all_categories = []
@@ -645,7 +663,7 @@ def edit_pending_scan(scan_id):
         "scan/edit.html",
         base_template="base.html",
         scan_id=scan_id,
-        image_filename=scan.get('image_path'),
+        image_filename=scan['image_path'] if scan['image_path'] else None,
         fecha=data.get("fecha"),
         comercio=data.get("comercio"),
         nif=data.get("nif"),
@@ -669,7 +687,8 @@ def edit_pending_scan(scan_id):
 def scan_image(filename):
     """Servir imagen de un scan (original o procesada)."""
     # Intentar la procesada primero, luego la original
-    processed = filename.rsplit(".", 1)[0] + "_processed.jpg"
+    base, _ = os.path.splitext(filename)
+    processed = base + "_processed.jpg"
     if os.path.exists(os.path.join(UPLOAD_DIR, processed)):
         return send_from_directory(UPLOAD_DIR, processed)
     return send_from_directory(UPLOAD_DIR, filename)
@@ -785,7 +804,7 @@ def _log_corrections(c, txn_id, original_values, data):
         # - OCR tenía valor y Sonia cambió
         # - OCR no tenía valor y Sonia añadió
         # - OCR tenía valor y Sonia lo borró
-        if curr and str(orig or '').strip() != str(curr).strip():
+        if str(orig or '').strip() != str(curr or '').strip():
             c.execute("""
                 INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
                 VALUES (?, ?, ?, ?)
