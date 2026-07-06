@@ -1,5 +1,4 @@
 {% extends base_template %}
-{% block title %}✏️ Revisar ticket — MisGastos{% endblock %}
 {% block content %}
 <h1 class="text-2xl mb-6">Revisar ticket</h1>
 
@@ -84,14 +83,21 @@
 
         <!-- Categoría -->
         <div>
-            <label class="block text-sm font-semibold">Categoría</label>
-            <select name="category" class="w-full border rounded p-2" id="input-category">
+            <label class="block text-sm font-semibold mb-2">Categoría</label>
+            <input type="hidden" name="category" id="input-category" value="{{ auto_category or 9 }}">
+            <div class="grid grid-cols-5 gap-2" id="category-grid">
                 {% for cat in all_categories %}
-                <option value="{{ cat.id }}" {% if auto_category == cat.id %}selected{% endif %}>
-                    {% if cat.parent_id %}  ↳ {{ cat.name }}{% else %}{{ cat.name }}{% endif %}
-                </option>
+                <button type="button"
+                        data-cat-id="{{ cat.id }}"
+                        onclick="selectCategory({{ cat.id }}, this)"
+                        class="cat-btn text-xs py-2 px-1 rounded font-bold text-white transition-all
+                               {% if auto_category == cat.id %}ring-2 ring-black ring-offset-1 scale-105{% endif %}"
+                        style="background: {{ cat.color }};{% if cat.parent_id %} opacity:0.85;{% endif %}">
+                    {{ cat.name }}
+                </button>
                 {% endfor %}
-            </select>
+            </div>
+            <p class="text-xs text-gray-500 mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
         </div>
 
         <!-- Items -->
@@ -143,7 +149,7 @@
         ✅ Guardar
     </button>
     <a href="/scan" class="block text-center text-gray-600 py-3 hover:underline">
-        ← Volver a subir tickets
+        Cancelar y descartar
     </a>
 </div>
 {% endif %}
@@ -160,8 +166,21 @@
         document.getElementById('save-total').value = e.target.value);
     document.getElementById('input-payment').addEventListener('change', e =>
         document.getElementById('save-payment').value = e.target.value);
-    document.getElementById('input-category').addEventListener('change', e =>
-        document.getElementById('save-category').value = e.target.value);
+
+    // Category button grid
+    function selectCategory(catId, btn) {
+        // Update hidden input
+        document.getElementById('input-category').value = catId;
+        document.getElementById('save-category').value = catId;
+        // Update visual selection
+        document.querySelectorAll('.cat-btn').forEach(b => {
+            b.classList.remove('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
+        });
+        btn.classList.add('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
+        // Update label
+        const name = btn.textContent.trim();
+        document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
+    }
 
     function validateForm() {
         const total = parseFloat(document.getElementById('save-total').value);
