@@ -13,7 +13,7 @@ from models.schema import get_db, init_db
 from services.ocr import extract_ticket
 from services.classifier import clasificar_por_items, clasificar_por_comercio
 from services.excel import import_excel, export_excel
-from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT
+from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
@@ -34,13 +34,15 @@ MESES_ES = [
 
 @app.template_filter('format_date_es')
 def format_date_es(value):
-    """Convert 'YYYY-MM-DD' → '6 jul 2026'. Acepta str o datetime."""
+    """Convert 'YYYY-MM-DD' → '6 jul 2026'. Acepta str o datetime.
+    Maneja tanto "YYYY-MM-DD HH:MM:SS" (SQLite) como "YYYY-MM-DDTHH:MM:SS" (ISO)."""
     if not value:
         return ''
-    if isinstance(value, str):
-        value = value.split('T')[0]  # quitar hora si existe
     if isinstance(value, datetime):
         return f"{value.day} {MESES_ES[value.month - 1]} {value.year}"
+    if isinstance(value, str):
+        # Manejar "YYYY-MM-DD HH:MM:SS" (SQLite) y "YYYY-MM-DDTHH:MM:SS" (ISO)
+        value = value.split(' ')[0].split('T')[0]
     try:
         d = datetime.strptime(value, '%Y-%m-%d')
         return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
@@ -94,7 +96,7 @@ def dashboard():
 
     # Gastos por categoría
     c.execute("""
-        SELECT c.name, c.color, SUM(t.total)
+        SELECT c.name, c.color, SUM(t.total) as total
         FROM transactions t
         JOIN categories c ON t.category_id = c.id
         WHERE t.kind='expense' AND t.date >= ? AND t.date <= ?
@@ -110,7 +112,7 @@ def dashboard():
     # Presupuestos del mes
     budgets = []
     c.execute("""
-        SELECT b.limit_val, c.name, c.color
+        SELECT b.limit_val, b.category_id, c.name, c.color
         FROM budgets b
         JOIN categories c ON b.category_id = c.id
         WHERE b.month_col = ?
@@ -120,7 +122,7 @@ def dashboard():
             SELECT COALESCE(SUM(t.total), 0)
             FROM transactions t
             WHERE t.kind='expense' AND t.category_id = ? AND t.date >= ? AND t.date <= ?
-        """, (c.execute("SELECT id FROM categories WHERE name = ?", (b['name'],)).fetchone()['id'], month_start, month_end))
+        """, (b['category_id'], month_start, month_end))
         spent = c.fetchone()[0]
         if b['limit_val'] > 0:
             pct = (spent / b['limit_val']) * 100
@@ -192,14 +194,14 @@ def scan_upload():
     # Procesar OCR
     result = extract_ticket(original_path)
 
-    # La ruta procesada es la que devuelve preprocess_image
-    processed_path = original_path.rsplit(".", 1)[0] + "_processed.jpg"
-
-    # Auto-clasificar por items
+    # Auto-clasificar — cascada en orden correcto (v5)
+    # Nivel 1: merchant conocido (prioridad más alta)
+    # Nivel 2: heurística por items
+    # Nivel 3: fallback a Otros
     auto_cat_id = None
-    if result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
-    elif result.comercio:
+
+    # Nivel 1: merchant conocido
+    if result.comercio:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{result.comercio}%",))
@@ -207,6 +209,12 @@ def scan_upload():
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
+
+    # Nivel 2: heurística por items (solo si merchant no dio categoría)
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+
+    # Nivel 3: fallback
     if auto_cat_id is None:
         auto_cat_id = 9  # Otros
 
@@ -217,9 +225,9 @@ def scan_upload():
     status = "pending" if low_conf else "reviewed"
 
     c.execute("""
-        INSERT INTO scans (model, raw_output, confidence, duration_ms, status)
-        VALUES (?, ?, ?, ?, ?)
-    """, ("qwen3.5:9b", result.raw_output, result.overall_confidence, result.duration_ms, status))
+        INSERT INTO scans (model, raw_output, confidence, duration_ms, status, image_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, ("qwen3.5-9b", result.raw_output, result.overall_confidence, result.duration_ms, status, original_filename))
     scan_id = c.lastrowid
 
     c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
@@ -331,7 +339,8 @@ def scan_save():
     ))
     txn_id = c.lastrowid
 
-    # Guardar items
+    # Guardar items y calcular suma
+    items_sum = 0.0
     for i in range(len(item_descs)):
         desc = item_descs[i].strip()
         try:
@@ -343,6 +352,7 @@ def scan_save():
         except (ValueError, IndexError):
             qty = 1
         if desc and price > 0:
+            items_sum += price * qty
             c.execute("""
                 INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                 VALUES (?, ?, ?, ?, ?)
@@ -353,6 +363,15 @@ def scan_save():
         c.execute("""
             UPDATE scans SET transaction_id = ?, status = 'saved' WHERE id = ?
         """, (txn_id, data["scan_id"]))
+
+    # Validar que la suma de items cuadra con el total (si hay items)
+    if item_descs and items_sum > 0:
+        if abs(items_sum - data["total"]) > 0.05:
+            # No bloquear, pero registrar como corrección
+            c.execute("""
+                INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
+                VALUES (?, 'items_total_mismatch', ?, ?)
+            """, (txn_id, str(items_sum), str(data["total"])))
 
     # Log correcciones de campos editados
     _log_corrections(c, txn_id, original_values, data)
@@ -590,6 +609,58 @@ def discard_scan(scan_id):
     return redirect(url_for("review_queue"))
 
 
+@app.route("/scan/<int:scan_id>/edit")
+def edit_pending_scan(scan_id):
+    """Editar un scan pendiente de la cola de revisión."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM scans WHERE id = ? AND status = 'pending'", (scan_id,))
+    scan = c.fetchone()
+    if not scan:
+        return "Scan no encontrado o ya procesado", 404
+
+    # Parsear raw_output
+    try:
+        data = json.loads(scan['raw_output']) if scan['raw_output'] else {}
+    except json.JSONDecodeError:
+        data = {}
+
+    # Auto-clasificar
+    auto_cat_id = 9  # Otros por defecto
+    items = data.get("items", [])
+    if items:
+        auto_cat_id, _ = clasificar_por_items(items)
+
+    # Todas las categorías disponibles
+    all_categories = []
+    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
+    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+        all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
+
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+    conn.close()
+
+    return render_template(
+        "scan/edit.html",
+        base_template="base.html",
+        scan_id=scan_id,
+        image_filename=scan.get('image_path'),
+        fecha=data.get("fecha"),
+        comercio=data.get("comercio"),
+        nif=data.get("nif"),
+        items=items,
+        total=data.get("total"),
+        metodo_pago=data.get("metodo_pago"),
+        overall_confidence=scan['confidence'] or 0.0,
+        field_confidence=data.get("field_confidence", {}),
+        auto_category=auto_cat_id,
+        all_categories=all_categories,
+        error=None,
+        review_queue_count=review_count,
+    )
+
+
 # ============================================================
 # IMÁGENES
 # ============================================================
@@ -653,8 +724,40 @@ def export_excel_route():
 
 @app.route("/health")
 def health():
-    """Health check."""
-    return jsonify({"status": "ok", "db": os.path.exists(os.path.join(UPLOAD_DIR, "..", "gastos.db"))})
+    """Health check — verifica DB, VLM y disco."""
+    import shutil
+    import requests as req_lib
+
+    # DB check
+    db_ok = False
+    try:
+        check_conn = get_db()
+        check_conn.execute("SELECT 1").fetchone()
+        check_conn.close()
+        db_ok = True
+    except Exception:
+        pass
+
+    # VLM check
+    vlm_ok = False
+    try:
+        from config import LLAMA_ENDPOINT
+        r = req_lib.get(f"{LLAMA_ENDPOINT}/models", timeout=2)
+        vlm_ok = r.status_code == 200
+    except Exception:
+        pass
+
+    # Disk space
+    disk = shutil.disk_usage(os.path.dirname(DB_PATH))
+    disk_pct = (disk.used / disk.total) * 100
+
+    return jsonify({
+        "status": "ok" if db_ok and vlm_ok else "degraded",
+        "db": db_ok,
+        "vlm": vlm_ok,
+        "disk_free_gb": round(disk.free / (1024**3), 1),
+        "disk_pct": round(disk_pct, 1),
+    })
 
 
 # ============================================================
@@ -662,7 +765,8 @@ def health():
 # ============================================================
 
 def _log_corrections(c, txn_id, original_values, data):
-    """Log cambios entre valores OCR y valores confirmados."""
+    """Log cambios entre valores OCR y valores confirmados.
+    Registra también cuando OCR devolvió None y Sonia añadió info manualmente."""
     if not original_values:
         return
 
@@ -677,11 +781,15 @@ def _log_corrections(c, txn_id, original_values, data):
     for db_field, ocr_key in field_map.items():
         orig = original_values.get(ocr_key)
         curr = data.get(db_field)
-        if orig and curr and str(orig).strip() != str(curr).strip():
+        # Log si:
+        # - OCR tenía valor y Sonia cambió
+        # - OCR no tenía valor y Sonia añadió
+        # - OCR tenía valor y Sonia lo borró
+        if curr and str(orig or '').strip() != str(curr).strip():
             c.execute("""
                 INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
                 VALUES (?, ?, ?, ?)
-            """, (txn_id, ocr_key, str(orig), str(curr)))
+            """, (txn_id, ocr_key, str(orig) if orig is not None else None, str(curr)))
 
 
 def allowed_file(filename):
@@ -695,6 +803,7 @@ def allowed_file(filename):
 if __name__ == "__main__":
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     init_db()
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
     print(f"🚀 MisGastos corriendo en http://{FLASK_HOST}:{FLASK_PORT}")
     print(f"📷 Abre http://{FLASK_HOST}:{FLASK_PORT}/scan para subir un ticket")
-    app.run(host=FLASK_HOST, port=FLASK_PORT, debug=True)
+    app.run(host=FLASK_HOST, port=FLASK_PORT, debug=debug)

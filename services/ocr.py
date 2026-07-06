@@ -155,7 +155,7 @@ def _passes_sanity_check(r: OCRResult) -> bool:
         return False
     if r.items and r.total:
         items_sum = sum(i.get("precio", 0) * i.get("cantidad", 1) for i in r.items)
-        if items_sum > 0 and abs(items_sum - r.total) > 0.50:
+        if items_sum > 0 and abs(items_sum - r.total) > 0.05:
             return False
     if r.fecha:
         try:

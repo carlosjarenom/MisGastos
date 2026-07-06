@@ -27,4 +27,4 @@ done
 
 echo "🚀 Arrancando Flask..."
 cd "$(dirname "$0")/.."
-python3 app.py --host 0.0.0.0 --port 5000
+python3 app.py

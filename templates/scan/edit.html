@@ -74,7 +74,7 @@
         <div>
             <label class="block text-sm font-semibold">Método de pago</label>
             <select name="payment_method" class="w-full border rounded p-2" id="input-payment">
-                <option value="">Desconocido</option>
+                <option value="">—</option>
                 <option value="Efectivo" {% if metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
                 <option value="Tarjeta" {% if metodo_pago == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
                 <option value="Bizum" {% if metodo_pago == 'Bizum' %}selected{% endif %}>Bizum</option>
@@ -101,21 +101,29 @@
             <p class="text-xs text-gray-500 mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
         </div>
 
-        <!-- Items -->
+        <!-- Items editables -->
         {% if items %}
         <div>
             <label class="block text-sm font-semibold">Items detectados ({{ items|length }})</label>
-            <div class="max-h-40 overflow-y-auto border rounded p-2 text-sm">
+            <div class="max-h-60 overflow-y-auto border rounded p-2 text-sm space-y-2">
                 {% for item in items %}
-                <div class="flex justify-between py-1 border-b">
-                    <span>{{ item.descripcion }}</span>
-                    <span class="whitespace-nowrap">
-                        {% if item.cantidad and item.cantidad > 1 %}{{ item.cantidad }}x{% endif %}
-                        {{ "%.2f"|format(item.precio) }}€
-                    </span>
+                <div class="grid grid-cols-12 gap-1 items-center">
+                    <input type="text" name="item_desc[]" value="{{ item.descripcion }}"
+                           class="col-span-7 border rounded p-1 text-sm item-desc-input"
+                           id="input-item-desc-{{ loop.index0 }}">
+                    <input type="number" name="item_qty[]" value="{{ item.cantidad or 1 }}" min="1"
+                           class="col-span-2 border rounded p-1 text-sm text-center item-qty-input"
+                           id="input-item-qty-{{ loop.index0 }}">
+                    <input type="number" name="item_price[]" value="{{ item.precio }}" step="0.01"
+                           class="col-span-3 border rounded p-1 text-sm text-right item-price-input"
+                           id="input-item-price-{{ loop.index0 }}">
                 </div>
                 {% endfor %}
             </div>
+            <p class="text-xs text-gray-500 mt-1">
+                Total items: <span id="items-sum">—</span>€
+                <span id="items-mismatch" class="text-red-600 ml-2 hidden">⚠️ No cuadra con el total</span>
+            </p>
         </div>
         {% endif %}
     </div>
@@ -134,14 +142,6 @@
     <input type="hidden" name="ocr_confidence" value="{{ overall_confidence }}">
     <input type="hidden" name="field_confidence" value='{{ field_confidence | tojson }}'>
 
-    <!-- Items hidden fields -->
-    {% if items %}
-    {% for item in items %}
-    <input type="hidden" name="item_desc[]" value="{{ item.descripcion }}">
-    <input type="hidden" name="item_price[]" value="{{ item.precio }}">
-    <input type="hidden" name="item_qty[]" value="{{ item.cantidad or 1 }}">
-    {% endfor %}
-    {% endif %}
 </form>
 
 <div class="mt-6 space-y-2">
@@ -191,5 +191,29 @@
         }
         return true;
     }
+
+    // Recalculate items sum and show mismatch warning
+    function recalcItemsSum() {
+        const prices = document.querySelectorAll('.item-price-input');
+        const qtys = document.querySelectorAll('.item-qty-input');
+        let sum = 0;
+        prices.forEach((p, i) => {
+            sum += parseFloat(p.value || 0) * parseInt(qtys[i].value || 1);
+        });
+        document.getElementById('items-sum').textContent = sum.toFixed(2);
+        const total = parseFloat(document.getElementById('save-total').value || 0);
+        const mismatch = document.getElementById('items-mismatch');
+        if (mismatch) {
+            if (Math.abs(sum - total) > 0.05) {
+                mismatch.classList.remove('hidden');
+            } else {
+                mismatch.classList.add('hidden');
+            }
+        }
+    }
+    document.querySelectorAll('.item-price-input, .item-qty-input').forEach(el => {
+        el.addEventListener('input', recalcItemsSum);
+    });
+    recalcItemsSum(); // initial
 </script>
 {% endblock %}

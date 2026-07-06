@@ -62,7 +62,7 @@
                 <span class="w-4 h-4 rounded-full" style="background: {{ cat['color'] }}"></span>
                 <span class="font-medium">{{ cat['name'] }}</span>
             </div>
-            <span class="font-bold">{{ "%.2f"|format(cat[2]) }}€</span>
+            <span class="font-bold">{{ "%.2f"|format(cat['total']) }}€</span>
         </div>
         {% endfor %}
     </div>

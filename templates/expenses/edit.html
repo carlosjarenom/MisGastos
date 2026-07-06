@@ -50,7 +50,7 @@
     <div>
         <label class="block text-sm font-semibold mb-1">Método de pago</label>
         <select name="payment_method" class="w-full border rounded p-2">
-            <option value="">Desconocido</option>
+            <option value="">—</option>
             <option value="Efectivo" {% if txn.payment_method == 'Efectivo' %}selected{% endif %}>Efectivo</option>
             <option value="Tarjeta" {% if txn.payment_method == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
             <option value="Bizum" {% if txn.payment_method == 'Bizum' %}selected{% endif %}>Bizum</option>

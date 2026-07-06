@@ -34,16 +34,21 @@
 {% endif %}
 
 <div class="bg-white rounded-lg shadow p-8">
-    <form method="POST" enctype="multipart/form-data" class="space-y-4">
+    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
+        <p class="font-bold text-amber-800">⚠️ Función en mantenimiento</p>
+        <p class="text-amber-700">El importador de Excel se está reescribiendo para soportar correctamente el formato del archivo de Sonia (gastos | ingresos, una hoja por mes, métodos de pago abreviados, etc.). Volverá pronto.</p>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-4 opacity-50 pointer-events-none">
         <div>
             <label class="block text-lg font-semibold mb-2">Selecciona archivo Excel</label>
             <input type="file" name="file" accept=".xlsx,.xls"
-                   class="w-full border rounded p-3" required>
+                   class="w-full border rounded p-3" required disabled>
             <p class="text-sm text-gray-500 mt-1">Formatos soportados: .xlsx, .xls</p>
         </div>
 
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded font-bold">
-            📥 Importar
+        <button type="submit" class="bg-gray-400 text-white px-6 py-2 rounded font-bold" disabled>
+            📥 Importar (temporalmente deshabilitado)
         </button>
     </form>
 

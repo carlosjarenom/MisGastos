@@ -5,7 +5,7 @@ import os
 
 # --- Llama.cpp (OCR VLM) ---
 LLAMA_ENDPOINT = "http://localhost:8005/v1"
-LLAMA_MODEL = "qwen3.5:9b"
+LLAMA_MODEL = "qwen3.5-9b"
 LLAMA_TEMPERATURE = 0.1
 LLAMA_MAX_TOKENS = 1024
 DOUBLE_CHECK_THRESHOLD = 50.0  # Tickets > 50€ se leen dos veces

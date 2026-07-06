@@ -70,6 +70,7 @@ def init_db():
         confidence REAL,
         duration_ms INTEGER,
         status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'reviewed', 'saved', 'discarded')),
+        image_path TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -95,6 +96,12 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_trans_merchant ON transactions(merchant_id);
     CREATE INDEX IF NOT EXISTS idx_corrections_field ON corrections(field);
     """)
+
+    # Migración: añadir columna image_path a scans si no existe
+    c.execute("PRAGMA table_info(scans)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'image_path' not in columns:
+        c.execute("ALTER TABLE scans ADD COLUMN image_path TEXT")
 
     # Insertar categorías canónicas si no existen
     for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
