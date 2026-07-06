@@ -255,14 +255,19 @@ def scan_save():
 
     # Tracking de correcciones
     original_values = {}
+    scan_row = None
     if data["scan_id"]:
-        c.execute("SELECT raw_output FROM scans WHERE id = ?", (data["scan_id"],))
+        c.execute("SELECT raw_output, confidence FROM scans WHERE id = ?", (data["scan_id"],))
         scan_row = c.fetchone()
         if scan_row and scan_row['raw_output']:
             try:
                 original_values = json.loads(scan_row['raw_output'])
             except (json.JSONDecodeError, TypeError):
                 pass
+
+    # Recuperar confianza del OCR para la transacción
+    ocr_confidence = scan_row['confidence'] if scan_row else None
+    field_confidence_json = json.dumps(original_values.get("field_confidence", {})) if original_values else None
 
     # Buscar o crear merchant
     c.execute("SELECT id, nif FROM merchants WHERE name = ?", (data["merchant"],))
@@ -294,7 +299,7 @@ def scan_save():
         data["date"], merchant_id, data["total"],
         data["payment_method"] if data["payment_method"] else None,
         data["category_id"],
-        None, None
+        ocr_confidence, field_confidence_json
     ))
     txn_id = c.lastrowid
 
