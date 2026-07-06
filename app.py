@@ -528,8 +528,25 @@ def review_queue():
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT * FROM scans WHERE status = 'pending' ORDER BY confidence ASC")
-    scans = c.fetchall()
+    raw_scans = c.fetchall()
     conn.close()
+
+    # Parsear raw_output JSON para extraer comercio y otros campos
+    scans = []
+    for scan in raw_scans:
+        scan_dict = dict(scan)
+        if scan_dict.get('raw_output'):
+            try:
+                data = json.loads(scan_dict['raw_output'])
+                scan_dict['parsed_merchant'] = data.get('comercio')
+                scan_dict['parsed_confidence'] = data.get('overall_confidence', 0)
+            except (json.JSONDecodeError, TypeError):
+                scan_dict['parsed_merchant'] = None
+                scan_dict['parsed_confidence'] = None
+        else:
+            scan_dict['parsed_merchant'] = None
+            scan_dict['parsed_confidence'] = None
+        scans.append(scan_dict)
 
     return render_template("scan/review_queue.html", scans=scans, review_queue_count=len(scans))
 

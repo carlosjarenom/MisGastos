@@ -18,11 +18,7 @@
         <div class="flex items-start justify-between">
             <div>
                 <p class="font-bold text-lg">
-                    {% if scan.raw_output %}
-                    {{ '(comercio por revisar)' }}
-                    {% else %}
-                    (sin datos)
-                    {% endif %}
+                    {{ scan.get('parsed_merchant') or '(comercio no detectado)' }}
                 </p>
                 <p class="text-sm text-gray-600">
                     ID: {{ scan.id }} ·
