@@ -120,7 +120,7 @@
                     <input type="text" name="item_desc[]" value="{{ item.descripcion }}"
                            class="col-span-7 border rounded p-1 text-sm item-desc-input"
                            id="input-item-desc-{{ loop.index0 }}">
-                    <input type="number" name="item_qty[]" value="{{ item.cantidad or 1 }}" min="1"
+                    <input type="number" name="item_qty[]" value="{{ item.cantidad or 1 }}" step="any" min="0.001"
                            class="col-span-2 border rounded p-1 text-sm text-center item-qty-input"
                            id="input-item-qty-{{ loop.index0 }}">
                     <input type="number" name="item_price[]" value="{{ item.precio }}" step="0.01"
@@ -205,7 +205,7 @@
         const qtys = document.querySelectorAll('.item-qty-input');
         let sum = 0;
         prices.forEach((p, i) => {
-            sum += parseFloat(p.value || 0) * parseInt(qtys[i].value || 1);
+            sum += parseFloat(p.value || 0) * parseFloat(qtys[i].value || 1);
         });
         document.getElementById('items-sum').textContent = sum.toFixed(2);
         const total = parseFloat(document.getElementById('save-total').value || 0);

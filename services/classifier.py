@@ -68,7 +68,7 @@ CATEGORY_MAP = {
 
 
 def clasificar_por_items(items: list[dict]) -> tuple[int, float]:
-    """Clasificación por scoring de importe (no conteo).
+    """Clasificación por scoring de importe (incluyendo cantidades).
 
     Returns: (category_id, confidence_ratio)
     """
@@ -77,16 +77,18 @@ def clasificar_por_items(items: list[dict]) -> tuple[int, float]:
 
     for item in items:
         desc = item.get("descripcion", "").lower()
-        precio = item.get("precio", 0)
-        total_amount += precio
+        precio = item.get("precio", 0) or 0
+        cantidad = item.get("cantidad", 1) or 1
+        importe = precio * cantidad
+        total_amount += importe
 
         for cat, kws in KEYWORDS.items():
             for kw, peso in kws.items():
                 if kw in desc:
-                    scores[cat] += precio * peso
+                    scores[cat] += importe * peso
                     break  # Una keyword por item por categoría
 
-    if not scores or total_amount == 0:
+    if not scores or total_amount <= 0:
         return (CATEGORY_MAP["Otros"], 0.0)
 
     cat_dominante = max(scores, key=scores.get)
@@ -120,3 +122,40 @@ def clasificar_por_comercio(merchant_name: str, merchant_db=None) -> int | None:
                         return merchant["category_id"]
 
     return None
+
+
+def unified_classify(merchant_name: str, items: list[dict], db_conn=None, nif: str = None) -> int:
+    """
+    Cascada de clasificación completa:
+    1. Merchant conocido en DB (por nombre o NIF)
+    2. Heurística por items
+    3. Fallback a 'Otros' (9)
+    """
+    # Nivel 1: Merchant conocido
+    if db_conn:
+        try:
+            c = db_conn.cursor()
+            # A. Prioridad: NIF
+            if nif:
+                c.execute("SELECT default_category_id FROM merchants WHERE nif = ?", (nif,))
+                row = c.fetchone()
+                if row and row['default_category_id']:
+                    return row['default_category_id']
+
+            # B. Nombre (LIKE)
+            if merchant_name:
+                c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{merchant_name}%",))
+                row = c.fetchone()
+                if row and row['default_category_id']:
+                    return row['default_category_id']
+        except Exception:
+            pass
+
+    # Nivel 2: Heurística por items
+    if items:
+        cat_id, ratio = clasificar_por_items(items)
+        if cat_id != CATEGORY_MAP["Otros"]:
+            return cat_id
+
+    # Nivel 3: Fallback
+    return CATEGORY_MAP["Otros"]
