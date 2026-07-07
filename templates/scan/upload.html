@@ -4,6 +4,14 @@
 <div class="text-center">
     <h1 class="text-3xl mb-6">📷 Nuevo ticket</h1>
 
+    {% if error %}
+    <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6 text-left max-w-md mx-auto">
+        <p class="font-bold text-red-800">❌ No se pudo procesar la imagen</p>
+        <p class="text-red-700">{{ error }}</p>
+        <p class="text-sm text-red-600 mt-2">Prueba con otra foto más clara.</p>
+    </div>
+    {% endif %}
+
     <form hx-post="/scan/upload"
           hx-encoding="multipart/form-data"
           hx-target="#result"

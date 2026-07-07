@@ -713,7 +713,7 @@ def scan_image(filename):
     """Servir imagen de un scan (original o procesada)."""
     # O7: Validar filename para path traversal
     safe = secure_filename(filename)
-    if not safe or safe != filename:
+    if not safe:
         return "Filename inválido", 400
 
     # Intentar la procesada primero, luego la original
