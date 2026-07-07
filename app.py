@@ -3,6 +3,7 @@ MisGastos — Aplicación principal Flask
 Contabilización de gastos familiares para Sonia
 """
 import os
+import sqlite3
 import uuid
 import json
 import calendar
