@@ -2,7 +2,7 @@
 
 **English version** · [📖 Versión en español (default)](./README.md)
 
-Automated family expense tracking for Sonia. A local web app that reads shopping receipts with AI (Qwen3.5-9B via llama.cpp), extracts data automatically, classifies it by category and stores it in SQLite — all without sending anything to the cloud.
+Automated family expense tracking. A local web app that reads shopping receipts with AI (Qwen3.5-9B via llama.cpp), extracts data automatically, classifies it by category and stores it in SQLite — all without sending anything to the cloud.
 
 > **Local privacy first.** No financial data leaves your home network. The AI model runs on your own GPU; the database lives on your disk.
 
@@ -27,10 +27,10 @@ Automated family expense tracking for Sonia. A local web app that reads shopping
 
 MisGastos turns photos of receipts into structured family accounting:
 
-1. **Sonia** takes a photo of the receipt from her tablet/phone
+1. **User** takes a photo of the receipt from their tablet/phone
 2. The **web app** receives the image and sends it to the **local AI model** (Qwen3.5-9B)
 3. The model automatically extracts: date, merchant, VAT ID (NIF), individual items, total and payment method
-4. Sonia **reviews the fields** (with doubtful fields highlighted in red) and corrects what's needed
+4. User **reviews the fields** (with doubtful fields highlighted in red) and corrects what's needed
 5. On confirmation, the expense is saved to **SQLite** with its category automatically assigned
 6. The **dashboard** shows statistics: monthly spending, comparison with previous month, distribution by category, recent expenses
 
@@ -41,7 +41,7 @@ MisGastos turns photos of receipts into structured family accounting:
 - ✅ **Review queue** — tickets with low OCR confidence go to a separate queue
 - ✅ **Cascade auto-classification**: rules by merchant → heuristics by items → fallback
 - ✅ **Double verification** for tickets > €50 (the model reads twice and compares)
-- ✅ **Self-learning** — the system saves Sonia's corrections to improve the future prompt
+- ✅ **Self-learning** — the system saves user corrections to improve the future prompt
 - ✅ **Excel import/export** — exports to traditional Excel-compatible format
 - ✅ **Receipt deduplication** by image + date + total + merchant
 
@@ -70,8 +70,8 @@ MisGastos turns photos of receipts into structured family accounting:
                                   Home WiFi (LAN)
                                              │
                               ┌──────────────┴──────────────┐
-                              │  Sonia's tablet (living room)│
-                              │  http://100.110.97.30:5000  │
+                              │  User's tablet/phone    │
+                              │  http://YOUR-SERVER-IP:5000  │
                               └─────────────────────────────┘
 ```
 
@@ -91,7 +91,7 @@ Receipt photo → Preprocessing (resize to 1024px)
               → Sanity checks (sum of items ≈ total, plausible date)
               → If confidence < 0.7 → Review queue
               → If confidence ≥ 0.7 → Edit screen
-              → Sonia reviews and confirms
+              → User reviews and confirms
               → Saved to SQLite + items + auto-categorization
 ```
 
@@ -114,9 +114,18 @@ Receipt photo → Preprocessing (resize to 1024px)
 
 - **Python 3.12+**
 - **llama.cpp** compiled with CUDA support (`llama-server` binary)
-- **Linux** (tested on Arch; should work on Debian/Ubuntu/Fedora)
+- **Linux** — supported distributions
 - **systemd** (for service management)
 - **NVIDIA drivers + CUDA toolkit** (for GPU)
+
+### Supported distributions
+
+| Distro | Install llama.cpp | Install NVIDIA | Install Python |
+|---|---|---|---|
+| **Arch Linux** | `yay -S llama.cpp-cuda` | `sudo pacman -S nvidia nvidia-utils` | `sudo pacman -S python` |
+| **Ubuntu 22.04+** | See [llama.cpp README](https://github.com/ggerganov/llama.cpp) | `sudo apt install nvidia-driver-550` | `sudo apt install python3 python3-venv python3-pip` |
+| **Debian 12+** | See [llama.cpp README](https://github.com/ggerganov/llama.cpp) | `sudo apt install nvidia-driver` | `sudo apt install python3 python3-venv python3-pip` |
+| **Fedora 39+** | `dnf install llama.cpp-cuda` (COPR) | `sudo dnf install akmod-nvidia` | `sudo dnf install python3` |
 
 ### AI models
 
@@ -281,13 +290,13 @@ http://YOUR-SERVER-IP:5000
 
 ### Typical usage flow
 
-1. **Sonia** opens the app on her tablet → sees "New ticket" screen
+1. **User** opens the app on their tablet → sees "New ticket" screen
 2. Takes a photo of the receipt (or drags an existing image)
 3. The system reads the receipt with AI (~3-5 seconds)
 4. A form appears with extracted fields:
    - Safe fields → green background
    - Doubtful fields → red background (review)
-5. Sonia corrects what's needed (including individual editable items)
+5. User corrects what's needed (including individual editable items)
 6. Clicks "✅ Guardar" (Save)
 7. If the system isn't sure (confidence < 70%) → goes to review queue
 8. Dashboard shows the new expense + updated statistics

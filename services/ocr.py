@@ -107,6 +107,24 @@ def extract_ticket(image_path: str) -> OCRResult:
     return result
 
 
+def _clean_json_response(raw: str) -> str:
+    """Quitar markdown fences (```json ... ```) que Qwen envuelve alrededor del JSON.
+    Sin esto, json.loads() falla y devuelve json_parse_error → 0% confidence."""
+    text = raw.strip()
+    # Quitar ```json ... ```
+    if text.startswith("```"):
+        # Encontrar el primer ``` de cierre
+        end = text.find("```", 3)
+        if end != -1:
+            text = text[3:end].strip()
+        else:
+            text = text[3:].strip()
+        # Quitar la línea "json" inicial si existe
+        if text.startswith("json"):
+            text = text[4:].strip()
+    return text
+
+
 def _call_vlm(image_path: str) -> OCRResult:
     t0 = time.time()
 
@@ -136,8 +154,11 @@ def _call_vlm(image_path: str) -> OCRResult:
 
     duration_ms = int((time.time() - t0) * 1000)
 
+    # Limpiar markdown fences antes de parsear JSON
+    cleaned = _clean_json_response(raw)
+
     try:
-        data = json.loads(raw)
+        data = json.loads(cleaned)
     except json.JSONDecodeError:
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,

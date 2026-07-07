@@ -2,7 +2,7 @@
 
 [📖 English version](./README.en.md) · **Versión en español (predeterminada)**
 
-Contabilización automatizada de gastos familiares para Sonia. Una aplicación web local que lee tickets de compra con IA (Qwen3.5-9B vía llama.cpp), extrae los datos automáticamente, los clasifica por categoría y los guarda en SQLite — todo sin enviar nada a la nube.
+Contabilización automatizada de gastos familiares. Una aplicación web local que lee tickets de compra con IA (Qwen3.5-9B vía llama.cpp), extrae los datos automáticamente, los clasifica por categoría y los guarda en SQLite — todo sin enviar nada a la nube.
 
 > **Privacidad local primero.** Ningún dato financiero sale de tu red doméstica. El modelo de IA corre en tu propia GPU; la base de datos vive en tu disco.
 
@@ -27,10 +27,10 @@ Contabilización automatizada de gastos familiares para Sonia. Una aplicación w
 
 MisGastos convierte fotos de tickets en contabilidad familiar estructurada:
 
-1. **Sonia** hace una foto al ticket desde su tablet/móvil
+1. **Usuario** hace una foto al ticket desde su tablet/móvil
 2. La **app web** recibe la imagen y la envía al **modelo de IA local** (Qwen3.5-9B)
 3. El modelo extrae automáticamente: fecha, comercio, NIF, items individuales, total y método de pago
-4. Sonia **revisa los campos** (con campos dudosos resaltados en rojo) y corrige lo que haga falta
+4. El usuario **revisa los campos** (con campos dudosos resaltados en rojo) y corrige lo que haga falta
 5. Al confirmar, el gasto se guarda en **SQLite** con su categoría asignada automáticamente
 6. El **dashboard** muestra estadísticas: gasto del mes, comparativa con el mes anterior, distribución por categoría, últimos gastos
 
@@ -41,7 +41,7 @@ MisGastos convierte fotos de tickets en contabilidad familiar estructurada:
 - ✅ **Cola de revisión** — tickets con baja confianza del OCR van a una cola separada
 - ✅ **Clasificación automática** en cascada: reglas por comercio → heurística por items → fallback
 - ✅ **Doble verificación** para tickets > 50€ (el modelo lee dos veces y compara)
-- ✅ **Auto-aprendizaje** — el sistema guarda las correcciones de Sonia para mejorar el prompt futuro
+- ✅ **Auto-aprendizaje** — el sistema guarda las correcciones del usuario para mejorar el prompt futuro
 - ✅ **Import/export Excel** — exporta a formato compatible con Excel tradicional
 - ✅ **Deduplicación de tickets** por imagen + fecha + total + comercio
 
@@ -70,8 +70,8 @@ MisGastos convierte fotos de tickets en contabilidad familiar estructurada:
                                   WiFi doméstica (LAN)
                                              │
                               ┌──────────────┴──────────────┐
-                              │  Tablet de Sonia (salón)    │
-                              │  http://100.110.97.30:5000  │
+                              │  Tablet/móvil del usuario    │
+                              │  http://IP-DEL-SERVIDOR:5000  │
                               └─────────────────────────────┘
 ```
 
@@ -91,7 +91,7 @@ Foto del ticket → Preprocesamiento (redimensionar a 1024px)
                 → Sanity checks (suma items ≈ total, fecha plausible)
                 → Si confidence < 0.7 → Cola de revisión
                 → Si confidence ≥ 0.7 → Pantalla de edición
-                → Sonia revisa y confirma
+                → Usuario revisa y confirma
                 → Guardado en SQLite + items + categorización automática
 ```
 
@@ -114,9 +114,18 @@ Foto del ticket → Preprocesamiento (redimensionar a 1024px)
 
 - **Python 3.12+**
 - **llama.cpp** compilado con soporte CUDA (`llama-server` binario)
-- **Linux** (probado en Arch; debería funcionar en Debian/Ubuntu/Fedora)
+- **Linux** — distribuciones soportadas
 - **systemd** (para gestión del servicio)
 - **NVIDIA drivers + CUDA toolkit** (para GPU)
+
+### Distribuciones soportadas
+
+| Distro | Instalar llama.cpp | Instalar NVIDIA | Instalar Python |
+|---|---|---|---|
+| **Arch Linux** | `yay -S llama.cpp-cuda` | `sudo pacman -S nvidia nvidia-utils` | `sudo pacman -S python` |
+| **Ubuntu 22.04+** | Ver [llama.cpp README](https://github.com/ggerganov/llama.cpp) | `sudo apt install nvidia-driver-550` | `sudo apt install python3 python3-venv python3-pip` |
+| **Debian 12+** | Ver [llama.cpp README](https://github.com/ggerganov/llama.cpp) | `sudo apt install nvidia-driver` | `sudo apt install python3 python3-venv python3-pip` |
+| **Fedora 39+** | `dnf install llama.cpp-cuda` (COPR) | `sudo dnf install akmod-nvidia` | `sudo dnf install python3` |
 
 ### Modelos de IA
 
@@ -228,7 +237,7 @@ chmod +x scripts/*.sh
 
 ### 7. Verificar la IP del servidor
 
-Editar `README.md` y los comentarios donde aparezca `100.110.97.30` para poner la IP real de tu servidor en la LAN. Para verla:
+Para acceder desde otro dispositivo necesitas la IP del servidor en tu red LAN. Para verla:
 
 ```bash
 ip addr show | grep "inet " | grep -v 127.0.0.1
@@ -281,13 +290,13 @@ http://IP-DEL-SERVIDOR:5000
 
 ### Flujo típico de uso
 
-1. **Sonia** abre la app en su tablet → ve pantalla de "Nuevo ticket"
+1. **Usuario** abre la app en su tablet → ve pantalla de "Nuevo ticket"
 2. Hace foto al ticket (o arrastra una imagen existente)
 3. El sistema lee el ticket con IA (~3-5 segundos)
 4. Aparece un formulario con los campos extraídos:
    - Campos seguros → fondo verde
    - Campos dudosos → fondo rojo (revisar)
-5. Sonia corrige lo que haga falta (incluyendo items individuales editables)
+5. El usuario corrige lo que haga falta (incluyendo items individuales editables)
 6. Pulsa "✅ Guardar"
 7. Si el sistema no está seguro (confidence < 70%) → va a cola de revisión
 8. Dashboard muestra el gasto añadido + estadísticas actualizadas

@@ -47,6 +47,9 @@ fi
 # Estado global
 INSTALL_OK=true
 NEED_MODEL=false
+DISTRO="unknown"
+DISTRO_ID=""
+DISTRO_VERSION=""
 
 # ============================================================
 # FUNCIONES
@@ -156,6 +159,76 @@ EOF
 }
 
 # ============================================================
+# DETECCIÓN DE DISTRIBUCIÓN
+# ============================================================
+
+detect_distro() {
+    if [[ -f /etc/os-release ]]; then
+        DISTRO_ID=$(. /etc/os-release && echo "$ID")
+        DISTRO_VERSION=$(. /etc/os-release && echo "$VERSION_ID")
+    fi
+
+    case "$DISTRO_ID" in
+        arch)
+            DISTRO="arch"
+            PKG_MGR="pacman"
+            ;;
+        ubuntu|pop)
+            DISTRO="debian"
+            PKG_MGR="apt"
+            ;;
+        debian)
+            DISTRO="debian"
+            PKG_MGR="apt"
+            ;;
+        fedora)
+            DISTRO="fedora"
+            PKG_MGR="dnf"
+            ;;
+        *)
+            DISTRO="unknown"
+            PKG_MGR="unknown"
+            ;;
+    esac
+}
+
+get_install_hint() {
+    local pkg="$1"
+    local hint="$2"
+
+    case "$DISTRO" in
+        arch)
+            case "$pkg" in
+                python|python3) echo "sudo pacman -S python" ;;
+                nvidia) echo "sudo pacman -S nvidia nvidia-utils" ;;
+                llama.cpp) echo "yay -S llama.cpp-cuda" ;;
+                *) echo "$hint" ;;
+            esac
+            ;;
+        debian)
+            case "$pkg" in
+                python|python3) echo "sudo apt install python3 python3-venv python3-pip" ;;
+                nvidia) echo "sudo apt install nvidia-driver-550" ;;
+                llama.cpp) echo "Ver https://github.com/ggerganov/llama.cpp" ;;
+                *) echo "$hint" ;;
+            esac
+            ;;
+        fedora)
+            case "$pkg" in
+                python|python3) echo "sudo dnf install python3" ;;
+                nvidia) echo "sudo dnf install akmod-nvidia" ;;
+                llama.cpp) echo "Ver https://github.com/ggerganov/llama.cpp" ;;
+                *) echo "$hint" ;;
+            esac
+            ;;
+        *)
+            echo "$hint"
+            ;;
+    esac
+}
+}
+
+# ============================================================
 # PARSE ARGS
 # ============================================================
 
@@ -176,6 +249,10 @@ done
 # ============================================================
 
 print_header
+
+# Detectar distribución
+detect_distro
+print_info "Distribución detectada: ${DISTRO_ID} ${DISTRO_VERSION} (${DISTRO})"
 
 # Verificar que el script se ejecuta desde el proyecto correcto
 if [[ ! -f "$PROJECT_DIR/app.py" ]]; then
@@ -467,7 +544,7 @@ else
         TMP_SERVICE=$(mktemp) || { print_warn "No se pudo crear archivo temporal"; SKIP_SYSTEMD=true; }
         
         if [[ "$SKIP_SYSTEMD" == "false" ]]; then
-            # Reemplazar /home/carlos/ con $HOME
+            # %h se expande automáticamente en systemd, pero sustituir /home/carlos/ si existe
             sed "s|/home/carlos/|$HOME/|g" "$SERVICE_SRC" > "$TMP_SERVICE"
             
             # Reemplazar ruta del binario llama-server si está en otro sitio
