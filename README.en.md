@@ -198,6 +198,15 @@ systemctl --user enable llama-cpp-server-misgastos
 systemctl --user start llama-cpp-server-misgastos
 ```
 
+**To remove the service** (uninstall):
+
+```bash
+systemctl --user stop llama-cpp-server-misgastos
+systemctl --user disable llama-cpp-server-misgastos
+rm ~/.config/systemd/user/llama-cpp-server-misgastos.service
+systemctl --user daemon-reload
+```
+
 **To test manually** (without systemd, in the terminal):
 
 ```bash
@@ -208,7 +217,7 @@ llama-server \
   --ctx-size 16384 \
   --gpu-layers 99 \
   --threads 16 \
-  --flash-attn
+  --flash-attn on
 ```
 
 ### 6. Make scripts executable
@@ -250,10 +259,9 @@ From your tablet/phone on the same WiFi: `http://YOUR-SERVER-IP:5000`
 ```
 
 This:
-1. Stops OpenClaw or other GPU-using services (if any)
-2. Starts the llama.cpp service with Qwen3.5-9B (port 8005)
-3. Waits for the model to load (~20 seconds)
-4. Starts Flask (port 5000)
+1. Starts the llama.cpp service with Qwen3.5-9B (port 8005)
+2. Waits for the model to load (~20 seconds)
+3. Starts Flask (port 5000)
 
 ### Stop the app
 
@@ -261,7 +269,7 @@ This:
 ./scripts/stop-misgastos.sh
 ```
 
-Stops Flask and the llama.cpp service. Optionally restarts OpenClaw if you use it.
+Stops Flask and the llama.cpp service.
 
 ### Access
 
@@ -441,7 +449,7 @@ MisGastos (Flask, Python)  ──── HTTP POST /v1/chat/completions ───
 ### Why separate?
 
 1. **llama.cpp is a heavy C++ binary** — doesn't integrate well into a Python project
-2. **Allows model reuse** — other projects (like OpenClaw) can use the same service
+2. **Allows model reuse** — other projects can share the same llama.cpp service
 3. **Isolates failures** — if the model crashes, Flask keeps running
 4. **Optimal configuration** — GPU parameters, threads, ctx-size are tuned independently
 
@@ -460,7 +468,7 @@ llama-server \
   --threads 16 \
   --batch-size 512 \
   --ubatch-size 512 \
-  --flash-attn
+  --flash-attn on
 ```
 
 **Key parameters:**
@@ -468,12 +476,12 @@ llama-server \
 | Parameter | Value | Reason |
 |---|---|---|
 | `-m` | Qwen3.5-9B Q4_K_M | Multimodal model for receipt OCR |
-| `--mmproj` | mmproj-f16 | Vision projector (required for VLM) |
-| `--port` | 8005 | Different port from OpenClaw (8002) |
+| `--mmproj` | mmproj-BF16 | Vision projector (required for VLM) |
+| `--port` | 8005 | llama.cpp server port |
 | `--ctx-size` | 16384 | Enough for image + prompt + JSON output |
-| `--gpu-layers` | 99 | All model layers in VRAM (fits in 24GB) |
+| `--gpu-layers` | 99 | All model layers in VRAM (adjust if your GPU has less) |
 | `--threads` | 16 | CPU threads for preprocessing |
-| `--flash-attn` | (flag) | Speeds up attention, especially with large images |
+| `--flash-attn on` | on | Speeds up attention, especially with large images |
 | `--batch-size` | 512 | Optimized for one ticket per request |
 
 ### Switching models
@@ -543,7 +551,7 @@ Shouldn't happen (fixed in v5+), but if it does:
 
 - Very large images (>5MB): the app already resizes them to 1024px, but you can lower `MAX_IMAGE_DIM` in `config.py`
 - High GPU load: verify with `nvidia-smi` that no other processes are using it
-- Try `--flash-attn` (already enabled by default)
+- Try `--flash-attn on` (already enabled by default)
 
 ### Reset the database
 

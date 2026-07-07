@@ -14,7 +14,7 @@ ExecStart=/home/carlos/.local/bin/llama-server \
   --threads 16 \
   --batch-size 512 \
   --ubatch-size 512 \
-  --flash-attn
+  --flash-attn on
 Restart=on-failure
 RestartSec=5
 Environment=LLAMA_SERVER_LOG_LEVEL=info

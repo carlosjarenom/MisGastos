@@ -1,14 +1,9 @@
 #!/bin/bash
-# start-misgastos.sh — Arrancar MisGastos
-# Parar OpenClaw + 27B, arrancar 9B en puerto 8005, arrancar Flask
+# start-misgastos.sh — Arrancar MisGastos (llama.cpp 9B en puerto 8005 + Flask)
 
 set -e
 
-echo "🔴 Parando servicio 27B (OpenClaw)..."
-systemctl --user stop llama-cpp-server 2>/dev/null || true
-sleep 2
-
-echo "🟢 Arrancando servicio 9B (MisGastos) en puerto 8005..."
+echo "🟢 Arrancando servicio llama.cpp (MisGastos)..."
 systemctl --user daemon-reload
 systemctl --user start llama-cpp-server-misgastos
 
@@ -25,6 +20,7 @@ for i in {1..10}; do
     sleep 3
 done
 
+echo ""
 echo "🚀 Arrancando Flask..."
 cd "$(dirname "$0")/.."
 python3 app.py

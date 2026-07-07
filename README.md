@@ -198,6 +198,15 @@ systemctl --user enable llama-cpp-server-misgastos
 systemctl --user start llama-cpp-server-misgastos
 ```
 
+**Para eliminar el servicio** (desinstalar):
+
+```bash
+systemctl --user stop llama-cpp-server-misgastos
+systemctl --user disable llama-cpp-server-misgastos
+rm ~/.config/systemd/user/llama-cpp-server-misgastos.service
+systemctl --user daemon-reload
+```
+
 **Para probar manualmente** (sin systemd, en la terminal):
 
 ```bash
@@ -208,7 +217,7 @@ llama-server \
   --ctx-size 16384 \
   --gpu-layers 99 \
   --threads 16 \
-  --flash-attn
+  --flash-attn on
 ```
 
 ### 6. Hacer ejecutables los scripts
@@ -250,10 +259,9 @@ Desde la tablet/móvil en la misma WiFi: `http://IP-DEL-SERVIDOR:5000`
 ```
 
 Esto:
-1. Detiene OpenClaw u otros servicios que usen GPU (si los hay)
-2. Arranca el servicio de llama.cpp con Qwen3.5-9B (puerto 8005)
-3. Espera a que el modelo se cargue (~20 segundos)
-4. Arranca Flask (puerto 5000)
+1. Arranca el servicio de llama.cpp con Qwen3.5-9B (puerto 8005)
+2. Espera a que el modelo se cargue (~20 segundos)
+3. Arranca Flask (puerto 5000)
 
 ### Parar la app
 
@@ -261,7 +269,7 @@ Esto:
 ./scripts/stop-misgastos.sh
 ```
 
-Detiene Flask y el servicio de llama.cpp. Opcionalmente reenciende OpenClaw si lo usas.
+Detiene Flask y el servicio de llama.cpp.
 
 ### Acceder
 
@@ -441,7 +449,7 @@ MisGastos (Flask, Python)  ──── HTTP POST /v1/chat/completions ───
 ### ¿Por qué separado?
 
 1. **llama.cpp es un binario C++ pesado** — no se integra bien en un proyecto Python
-2. **Permite reutilizar el modelo** — otros proyectos (como OpenClaw) pueden usar el mismo servicio
+2. **Permite reutilizar el modelo** — otros proyectos pueden compartir el mismo servicio llama.cpp
 3. **Aísla fallos** — si el modelo crashea, Flask sigue corriendo
 4. **Configuración óptima** — parámetros de GPU, threads, ctx-size se ajustan independientemente
 
@@ -460,7 +468,7 @@ llama-server \
   --threads 16 \
   --batch-size 512 \
   --ubatch-size 512 \
-  --flash-attn
+  --flash-attn on
 ```
 
 **Parámetros clave:**
@@ -468,12 +476,12 @@ llama-server \
 | Parámetro | Valor | Razón |
 |---|---|---|
 | `-m` | Qwen3.5-9B Q4_K_M | Modelo multimodal para OCR de tickets |
-| `--mmproj` | mmproj-f16 | Proyector de visión (necesario para VLM) |
-| `--port` | 8005 | Puerto distinto al de OpenClaw (8002) |
+| `--mmproj` | mmproj-BF16 | Proyector de visión (necesario para VLM) |
+| `--port` | 8005 | Puerto del servidor llama.cpp |
 | `--ctx-size` | 16384 | Suficiente para imagen + prompt + JSON output |
-| `--gpu-layers` | 99 | Todo el modelo en VRAM (cabe en 24GB) |
+| `--gpu-layers` | 99 | Todo el modelo en VRAM (ajustar si tu GPU tiene menos) |
 | `--threads` | 16 | CPU threads para preprocesamiento |
-| `--flash-attn` | (flag) | Acelera atención, especialmente con imágenes grandes |
+| `--flash-attn on` | on | Acelera atención, especialmente con imágenes grandes |
 | `--batch-size` | 512 | Optimizado para un ticket por request |
 
 ### Cambiar de modelo
@@ -543,7 +551,7 @@ No debería pasar (arreglado en v5+), pero si ocurre:
 
 - Imágenes muy grandes (>5MB): la app ya las redimensiona a 1024px, pero puedes reducir `MAX_IMAGE_DIM` en `config.py`
 - Mucha carga en GPU: verifica con `nvidia-smi` que no hay otros procesos
-- Probar `--flash-attn` (ya activado por defecto)
+- Probar `--flash-attn on` (ya activado por defecto)
 
 ### Resetear la base de datos
 
