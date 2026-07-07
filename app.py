@@ -407,6 +407,24 @@ def scan_save():
                 VALUES (?, ?, ?, ?, ?)
             """, (txn_id, desc, qty, price, data["category_id"]))
 
+    # Guardar items también en tabla products (historial de precios)
+    for i in range(len(item_descs)):
+        desc = item_descs[i].strip()
+        try:
+            price = float(item_prices[i])
+        except (ValueError, IndexError):
+            price = 0
+        try:
+            qty = int(item_quants[i])
+        except (ValueError, IndexError):
+            qty = 1
+        if desc and price > 0:
+            unit_price = price / qty if qty > 0 else price
+            c.execute("""
+                INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (desc, unit_price, data["date"], txn_id, merchant_id))
+
     # Actualizar scan → vincular a transacción + marcar como guardado
     if data["scan_id"]:
         c.execute("""
@@ -1024,6 +1042,24 @@ def new_expense_manual():
                     INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                     VALUES (?, ?, ?, ?, ?)
                 """, (txn_id, desc, qty, price, category_id))
+
+        # Guardar items también en tabla products (historial de precios)
+        for i in range(len(item_descs)):
+            desc = item_descs[i].strip()
+            try:
+                price = float(item_prices[i])
+            except (ValueError, IndexError):
+                price = 0
+            try:
+                qty = int(item_quants[i])
+            except (ValueError, IndexError):
+                qty = 1
+            if desc and price > 0:
+                unit_price = price / qty if qty > 0 else price
+                c.execute("""
+                    INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (desc, unit_price, date_val, txn_id, merchant_id))
 
         conn.commit()
         conn.close()

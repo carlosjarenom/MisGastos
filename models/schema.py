@@ -90,6 +90,20 @@ def init_db():
         limit_val REAL
     );
 
+    CREATE TABLE IF NOT EXISTS products (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        unit_price REAL NOT NULL,
+        date TEXT NOT NULL,
+        transaction_id INTEGER REFERENCES transactions(id) ON DELETE CASCADE,
+        merchant_id INTEGER REFERENCES merchants(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
+    CREATE INDEX IF NOT EXISTS idx_products_date ON products(date);
+    CREATE INDEX IF NOT EXISTS idx_products_merchant ON products(merchant_id);
+
     CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_trans_kind_date ON transactions(kind, date);
     CREATE INDEX IF NOT EXISTS idx_trans_category ON transactions(category_id);

@@ -22,19 +22,14 @@
     <p class="font-semibold text-blue-800 mb-1">🔧 Herramientas de imagen</p>
     <p class="text-blue-700 mb-2">Si el ticket está rotado o no se lee bien, intenta estas opciones:</p>
     <div class="flex gap-2 flex-wrap">
-        <form method="POST" action="/scan/{{ scan_id }}/rotate/90" class="inline">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
-                ↻ Rotar 90°
-            </button>
-        </form>
-        <form method="POST" action="/scan/{{ scan_id }}/rotate/180" class="inline">
-            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
-                ⤽ Rotar 180°
-            </button>
-        </form>
         <form method="POST" action="/scan/{{ scan_id }}/rotate/270" class="inline">
             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
-                ↺ Rotar 270°
+                ↺ Izquierda
+            </button>
+        </form>
+        <form method="POST" action="/scan/{{ scan_id }}/rotate/90" class="inline">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
+                ↻ Derecha
             </button>
         </form>
         <form method="POST" action="/scan/{{ scan_id }}/enhance" class="inline">
