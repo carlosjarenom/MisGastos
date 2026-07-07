@@ -18,13 +18,13 @@ def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
     - Si content está vacío pero reasoning_content tiene texto, usar reasoning_content
     - Si ambos están vacíos, lanzar ValueError
 
-    Intenta desactivar modo thinking con enable_thinking=False;
-    si falla, reintenta sin extra_body.
+    Usa enable_thinking=True (necesario para imágenes en llama.cpp).
+    Si falla, reintenta sin extra_body.
     """
     response = None
     last_error = None
 
-    # Intentar primero con enable_thinking=False (FIX 10B)
+    # Intentar primero con enable_thinking=True (FIX 11)
     try:
         response = client.chat.completions.create(
             model=model,
@@ -32,11 +32,11 @@ def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
             temperature=LLAMA_TEMPERATURE,
             top_p=0.9,
             max_tokens=LLAMA_MAX_TOKENS,
-            extra_body={"enable_thinking": False},
+            extra_body={"enable_thinking": True},
         )
     except Exception as e:
         last_error = e
-        log.warning(f"Error con enable_thinking=False ({e}), reintentando sin extra_body...")
+        log.warning(f"Error con enable_thinking=True ({e}), reintentando sin extra_body...")
 
     # Fallback: sin enable_thinking
     if response is None:

@@ -41,9 +41,8 @@ Reglas críticas:
  general, pon overall_confidence bajo (<0.7).
 10. Si el ticket NO es legible en absoluto, devuelve:
  {"overall_confidence": 0.0, "error": "ticket_no_legible"}
-11. IMPORTANTE: No uses modo thinking ni razonamiento interno.
- Responde DIRECTAMENTE con el JSON. No escribas tags de reasoning.
- El output debe ser SOLO el JSON, sin razonamiento previo."""
+11. Tras razonar internamente, tu respuesta FINAL debe ser SOLO el JSON.
+ Puedes pensar antes de responder, pero el output final debe ser JSON válido."""
 
 USER_PROMPT = """Extrae los datos de este ticket en JSON.
 
@@ -271,7 +270,7 @@ def _call_vlm_direct(image_path: str, img_b64: str) -> str:
         "temperature": LLAMA_TEMPERATURE,
         "top_p": 0.9,
         "max_tokens": LLAMA_MAX_TOKENS,
-        "enable_thinking": False,
+        "enable_thinking": True,
     }
 
     response = requests.post(
