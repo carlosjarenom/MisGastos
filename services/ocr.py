@@ -121,7 +121,19 @@ def _call_vlm(image_path: str) -> OCRResult:
         ]},
     ]
 
-    raw = call_vlm(messages)
+    try:
+        raw = call_vlm(messages)
+    except Exception as e:
+        # VLM caído, timeout, o cualquier error de conexión
+        duration_ms = int((time.time() - t0) * 1000)
+        return OCRResult(
+            fecha=None, comercio=None, nif=None, items=[], total=None,
+            metodo_pago=None, overall_confidence=0.0,
+            field_confidence={}, model="qwen3.5-9b",
+            raw_output="", duration_ms=duration_ms,
+            error=f"vlm_unavailable: {type(e).__name__}"
+        )
+
     duration_ms = int((time.time() - t0) * 1000)
 
     try:

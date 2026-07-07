@@ -192,7 +192,16 @@ def scan_upload():
     f.save(original_path)
 
     # Procesar OCR
-    result = extract_ticket(original_path)
+    try:
+        result = extract_ticket(original_path)
+    except ValueError as e:
+        # Imagen inválida
+        os.remove(original_path)
+        return render_template(
+            "scan/upload.html",
+            error=str(e),
+            review_queue_count=0,
+        )
 
     # Auto-clasificar — cascada en orden correcto (v5)
     # Nivel 1: merchant conocido (prioridad más alta)
@@ -267,13 +276,24 @@ def scan_upload():
 @app.route("/scan/save", methods=["POST"])
 def scan_save():
     """Guardar ticket confirmado (desde OCR o edición)."""
+    # Validar total y categoría antes de convertir
+    try:
+        total_str = request.form.get("total", "0")
+        total = float(total_str) if total_str else 0.0
+    except (ValueError, TypeError):
+        return "Total inválido", 400
+    try:
+        category_id = int(request.form.get("category", 0))
+    except (ValueError, TypeError):
+        return "Categoría inválida", 400
+
     data = {
         "scan_id": request.form.get("scan_id"),
         "date": request.form.get("date"),
         "merchant": request.form.get("merchant", "").strip(),
         "nif": request.form.get("nif", "").strip() or None,
-        "total": float(request.form.get("total", 0)),
-        "category_id": int(request.form.get("category", 0)),
+        "total": total,
+        "category_id": category_id,
         "payment_method": request.form.get("payment_method", ""),
     }
 
@@ -305,27 +325,29 @@ def scan_save():
     ocr_confidence = scan_row['confidence'] if scan_row else None
     field_confidence_json = json.dumps(original_values.get("field_confidence", {})) if original_values else None
 
-    # Buscar o crear merchant
-    c.execute("SELECT id, nif FROM merchants WHERE name = ?", (data["merchant"],))
-    row = c.fetchone()
-    if row:
-        merchant_id = row['id']
-        # Actualizar NIF si era null y ahora hay uno
-        if data["nif"] and (row['nif'] is None or row['nif'] == ""):
-            c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (data["nif"], merchant_id))
-            # Log corrección si había valor original
-            orig_nif = original_values.get("nif")
-            if orig_nif and orig_nif != data["nif"]:
-                c.execute("""
-                    INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
-                    VALUES (NULL, 'nif', ?, ?)
-                """, (orig_nif, data["nif"]))
-    else:
-        c.execute(
-            "INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
-            (data["merchant"], data["nif"], data["category_id"])
-        )
-        merchant_id = c.lastrowid
+    # Buscar o crear merchant (N4: no crear merchant fantasma si name="")
+    merchant_id = None
+    if data["merchant"]:
+        c.execute("SELECT id, nif FROM merchants WHERE name = ?", (data["merchant"],))
+        row = c.fetchone()
+        if row:
+            merchant_id = row['id']
+            # Actualizar NIF si era null y ahora hay uno
+            if data["nif"] and (row['nif'] is None or row['nif'] == ""):
+                c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (data["nif"], merchant_id))
+                # Log corrección si había valor original
+                orig_nif = original_values.get("nif")
+                if orig_nif and orig_nif != data["nif"]:
+                    c.execute("""
+                        INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
+                        VALUES (NULL, 'nif', ?, ?)
+                    """, (orig_nif, data["nif"]))
+        else:
+            c.execute(
+                "INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
+                (data["merchant"], data["nif"], data["category_id"])
+            )
+            merchant_id = c.lastrowid
 
     # Insertar transacción
     c.execute("""
@@ -520,17 +542,21 @@ def edit_expense(txn_id):
         # Actualizar merchant
         c.execute("SELECT id FROM merchants WHERE name = ?", (new_merchant,))
         mrow = c.fetchone()
-        if mrow:
-            # Si el merchant encontrado es distinto al actual, reasignar
-            if mrow['id'] != txn['merchant_id']:
-                c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (mrow['id'], txn_id))
-            if new_nif and not txn['merchant_nif']:
-                c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (new_nif, mrow['id']))
+        if new_merchant:
+            if mrow:
+                # Si el merchant encontrado es distinto al actual, reasignar
+                if mrow['id'] != txn['merchant_id']:
+                    c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (mrow['id'], txn_id))
+                if new_nif and not txn['merchant_nif']:
+                    c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (new_nif, mrow['id']))
+            else:
+                # Nuevo nombre → insertar
+                c.execute("INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)", (new_merchant, new_nif or None, new_category))
+                new_merchant_id = c.lastrowid
+                c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (new_merchant_id, txn_id))
         else:
-            # Nuevo nombre → insertar
-            c.execute("INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)", (new_merchant, new_nif or None, new_category))
-            new_merchant_id = c.lastrowid
-            c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (new_merchant_id, txn_id))
+            # Merchant vacío → no crear fantasma, poner NULL
+            c.execute("UPDATE transactions SET merchant_id = NULL WHERE id = ?", (txn_id,))
 
         # Actualizar transacción
         c.execute("""
@@ -633,11 +659,10 @@ def edit_pending_scan(scan_id):
     comercio = data.get("comercio")
     items = data.get("items", [])
 
-    # Nivel 1: merchant conocido
+    # Nivel 1: merchant conocido (O6: reusar cursor c)
     if comercio:
-        c2 = conn.cursor()
-        c2.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
-        mrow = c2.fetchone()
+        c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
+        mrow = c.fetchone()
         if mrow and mrow['default_category_id']:
             auto_cat_id = mrow['default_category_id']
 
@@ -686,12 +711,17 @@ def edit_pending_scan(scan_id):
 @app.route("/scan/image/<filename>")
 def scan_image(filename):
     """Servir imagen de un scan (original o procesada)."""
+    # O7: Validar filename para path traversal
+    safe = secure_filename(filename)
+    if not safe or safe != filename:
+        return "Filename inválido", 400
+
     # Intentar la procesada primero, luego la original
-    base, _ = os.path.splitext(filename)
+    base, _ = os.path.splitext(safe)
     processed = base + "_processed.jpg"
     if os.path.exists(os.path.join(UPLOAD_DIR, processed)):
         return send_from_directory(UPLOAD_DIR, processed)
-    return send_from_directory(UPLOAD_DIR, filename)
+    return send_from_directory(UPLOAD_DIR, safe)
 
 
 # ============================================================
@@ -808,7 +838,11 @@ def _log_corrections(c, txn_id, original_values, data):
             c.execute("""
                 INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
                 VALUES (?, ?, ?, ?)
-            """, (txn_id, ocr_key, str(orig) if orig is not None else None, str(curr)))
+            """, (
+                txn_id, ocr_key,
+                str(orig) if orig is not None else None,
+                str(curr) if curr else None  # NULL si curr es None o '' (N5)
+            ))
 
 
 def allowed_file(filename):

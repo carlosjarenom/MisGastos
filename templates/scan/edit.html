@@ -93,7 +93,8 @@
         <!-- Categoría -->
         <div>
             <label class="block text-sm font-semibold mb-2">Categoría</label>
-            <input type="hidden" name="category" id="input-category" value="{{ auto_category or 9 }}">
+            <!-- O5: sin name="category", usa save-category más abajo -->
+            <input type="hidden" id="input-category" value="{{ auto_category or 9 }}">
             <div class="grid grid-cols-5 gap-2" id="category-grid">
                 {% for cat in all_categories %}
                 <button type="button"
