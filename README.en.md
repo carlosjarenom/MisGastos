@@ -237,7 +237,7 @@ chmod +x scripts/*.sh
 
 ### 7. Verify the server IP
 
-Edit `README.md` and any comments where `100.110.97.30` appears to set your server's actual LAN IP. To find it:
+To find your server's LAN IP:
 
 ```bash
 ip addr show | grep "inet " | grep -v 127.0.0.1

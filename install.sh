@@ -226,7 +226,6 @@ get_install_hint() {
             ;;
     esac
 }
-}
 
 # ============================================================
 # PARSE ARGS
@@ -301,14 +300,14 @@ elif python3 -m pip --version &> /dev/null; then
     print_ok "pip encontrado (vía python3 -m pip)"
 else
     print_err "pip NO encontrado"
-    print_info "Instalar con: sudo pacman -S python-pip  (Arch Linux)"
+    print_info "Instalar con: $(get_install_hint python3 'sudo pacman -S python-pip')"
     PREREQ_OK=false
 fi
 
 # venv module
 if ! python3 -c "import venv" 2>/dev/null; then
     print_err "Módulo venv de Python no disponible"
-    print_info "Instalar con: sudo pacman -S python-virtualenv  (Arch Linux)"
+    print_info "Instalar con: $(get_install_hint python3 "sudo pacman -S python-virtualenv")"
     PREREQ_OK=false
 else
     print_ok "Módulo venv disponible"
@@ -330,14 +329,14 @@ if check_command nvidia-smi; then
     fi
 else
     print_err "NVIDIA drivers NO encontrados (falta nvidia-smi)"
-    print_info "Instalar drivers NVIDIA: sudo pacman -S nvidia nvidia-utils"
+    print_info "Instalar drivers NVIDIA: $(get_install_hint nvidia "sudo pacman -S nvidia nvidia-utils")"
     PREREQ_OK=false
 fi
 
 # llama.cpp
 if ! check_command llama-server; then
     print_err "llama.cpp NO encontrado (falta llama-server en PATH)"
-    print_info "En Arch Linux: yay -S llama.cpp-cuda"
+    print_info "$(get_install_hint llama.cpp 'yay -S llama.cpp-cuda')"
     print_info "Compilar desde fuente: https://github.com/ggerganov/llama.cpp"
     PREREQ_OK=false
 else

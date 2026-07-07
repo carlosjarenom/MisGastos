@@ -1,6 +1,6 @@
 """
 MisGastos — Aplicación principal Flask
-Contabilización de gastos familiares para Sonia
+Contabilización de gastos familiares
 """
 import os
 import sqlite3
@@ -774,17 +774,17 @@ def edit_pending_scan(scan_id):
 
 @app.route("/scan/image/<filename>")
 def scan_image(filename):
-    """Servir imagen de un scan (original o procesada)."""
-    # O7: Validar filename para path traversal
+    """Servir imagen de un scan (prioridad: current > processed > original)."""
     safe = secure_filename(filename)
     if not safe:
         return "Filename inválido", 400
 
-    # Intentar la procesada primero, luego la original
     base, _ = os.path.splitext(safe)
-    processed = base + "_processed.jpg"
-    if os.path.exists(os.path.join(UPLOAD_DIR, processed)):
-        return send_from_directory(UPLOAD_DIR, processed)
+    # Prioridad: _current > _processed > original
+    for suffix in ('_current', '_processed'):
+        candidate = f"{base}{suffix}.jpg"
+        if os.path.exists(os.path.join(UPLOAD_DIR, candidate)):
+            return send_from_directory(UPLOAD_DIR, candidate)
     return send_from_directory(UPLOAD_DIR, safe)
 
 
@@ -879,7 +879,7 @@ def health():
 
 def _log_corrections(c, txn_id, original_values, data):
     """Log cambios entre valores OCR y valores confirmados.
-    Registra también cuando OCR devolvió None y Sonia añadió info manualmente."""
+    Registra también cuando OCR devolvió None y el usuario añadió info manualmente."""
     if not original_values:
         return
 
@@ -895,9 +895,9 @@ def _log_corrections(c, txn_id, original_values, data):
         orig = original_values.get(ocr_key)
         curr = data.get(db_field)
         # Log si:
-        # - OCR tenía valor y Sonia cambió
-        # - OCR no tenía valor y Sonia añadió
-        # - OCR tenía valor y Sonia lo borró
+        # - OCR tenía valor y el usuario cambió
+        # - OCR no tenía valor y el usuario añadió
+        # - OCR tenía valor y el usuario lo borró
         if str(orig or '').strip() != str(curr or '').strip():
             c.execute("""
                 INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
