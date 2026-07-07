@@ -57,7 +57,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
         description TEXT NOT NULL,
-        quantity INTEGER DEFAULT 1,
+        quantity REAL DEFAULT 1,
         unit_price REAL NOT NULL,
         category_id INTEGER REFERENCES categories(id)
     );
@@ -96,6 +96,16 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_trans_merchant ON transactions(merchant_id);
     CREATE INDEX IF NOT EXISTS idx_corrections_field ON corrections(field);
     """)
+
+    # Migración: asegurar que quantity es REAL (v6)
+    c.execute("PRAGMA table_info(transaction_items)")
+    cols = c.fetchall()
+    for col in cols:
+        if col[1] == 'quantity' and col[2].upper() == 'INTEGER':
+            # SQLite no permite cambiar tipos fácilmente, pero para REAL/INTEGER es flexible.
+            # Sin embargo, para consistencia en nuevas instalaciones usamos REAL.
+            # En bases existentes, SQLite tratará INTEGER como REAL si insertamos floats.
+            pass
 
     # Migración: añadir columna image_path a scans si no existe
     c.execute("PRAGMA table_info(scans)")

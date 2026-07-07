@@ -12,7 +12,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from werkzeug.utils import secure_filename
 from models.schema import get_db, init_db
 from services.ocr import extract_ticket
-from services.classifier import clasificar_por_items, clasificar_por_comercio
+from services.classifier import unified_classify
 from services.excel import import_excel, export_excel
 from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
 
@@ -49,15 +49,6 @@ def format_date_es(value):
         return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
     except (ValueError, TypeError):
         return value
-
-
-# ============================================================
-# INICIALIZACIÓN
-# ============================================================
-
-@app.before_request
-def ensure_db():
-    init_db()
 
 
 # ============================================================
@@ -136,6 +127,31 @@ def dashboard():
                 'over': pct > 100
             })
 
+    # Plotly donut chart JSON
+    chart_json = None
+    if por_categoria:
+        import plotly.graph_objects as go
+        import plotly.utils
+
+        labels = [row['name'] for row in por_categoria]
+        values = [row['total'] for row in por_categoria]
+        colors = [row['color'] for row in por_categoria]
+
+        fig = go.Figure(data=[go.Pie(
+            labels=labels,
+            values=values,
+            hole=.4,
+            marker=dict(colors=colors),
+            textinfo='label+percent',
+            hovertemplate='%{label}: %{value:.2f}€<extra></extra>'
+        )])
+        fig.update_layout(
+            margin=dict(t=0, b=0, l=0, r=0),
+            height=300,
+            showlegend=False
+        )
+        chart_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
     # Últimos 5 gastos
     c.execute("""
         SELECT t.*, c.name as category_name, m.name as merchant_name
@@ -158,6 +174,7 @@ def dashboard():
         review_queue_count=review_count,
         budgets=budgets,
         ultimos=ultimos,
+        chart_json=chart_json,
     )
 
 
@@ -204,29 +221,10 @@ def scan_upload():
             review_queue_count=0,
         )
 
-    # Auto-clasificar — cascada en orden correcto (v5)
-    # Nivel 1: merchant conocido (prioridad más alta)
-    # Nivel 2: heurística por items
-    # Nivel 3: fallback a Otros
-    auto_cat_id = None
-
-    # Nivel 1: merchant conocido
-    if result.comercio:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{result.comercio}%",))
-        row = c.fetchone()
-        conn.close()
-        if row and row['default_category_id']:
-            auto_cat_id = row['default_category_id']
-
-    # Nivel 2: heurística por items (solo si merchant no dio categoría)
-    if auto_cat_id is None and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
-
-    # Nivel 3: fallback
-    if auto_cat_id is None:
-        auto_cat_id = 9  # Otros
+    # Auto-clasificar — cascada centralizada
+    conn = get_db()
+    auto_cat_id = unified_classify(result.comercio, result.items, conn, nif=result.nif)
+    conn.close()
 
     # Guardar en scans
     conn = get_db()
@@ -397,9 +395,9 @@ def scan_save():
         except (ValueError, IndexError):
             price = 0
         try:
-            qty = int(item_quants[i])
+            qty = float(item_quants[i])
         except (ValueError, IndexError):
-            qty = 1
+            qty = 1.0
         if desc and price > 0:
             items_sum += price * qty
             c.execute("""
@@ -559,9 +557,22 @@ def edit_expense(txn_id):
 
     if request.method == "POST":
         new_date = request.form.get("date", txn['date'])
-        new_total = float(request.form.get("total", txn['total']))
-        new_category = int(request.form.get("category", txn['category_id']))
-        new_merchant = request.form.get("merchant", txn['merchant_name']).strip()
+
+        try:
+            new_total = float(request.form.get("total", txn['total'] or 0))
+        except (ValueError, TypeError):
+            new_total = 0.0
+
+        try:
+            # Si txn['category_id'] es None, usamos 9 (Otros) como default
+            new_category = int(request.form.get("category", txn['category_id'] or 9))
+        except (ValueError, TypeError):
+            new_category = 9
+
+        # Asegurar que merchant no sea None antes de strip()
+        merchant_default = txn['merchant_name'] or ""
+        new_merchant = request.form.get("merchant", merchant_default).strip()
+
         new_payment = request.form.get("payment_method", txn['payment_method']) or None
         new_nif = request.form.get("nif", txn['merchant_nif'] or "")
 
@@ -718,25 +729,11 @@ def edit_pending_scan(scan_id):
     except json.JSONDecodeError:
         data = {}
 
-    # Auto-clasificar — cascada completa (igual que scan_upload)
-    auto_cat_id = None
+    # Auto-clasificar — cascada centralizada
     comercio = data.get("comercio")
+    nif = data.get("nif")
     items = data.get("items", [])
-
-    # Nivel 1: merchant conocido (O6: reusar cursor c)
-    if comercio:
-        c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
-        mrow = c.fetchone()
-        if mrow and mrow['default_category_id']:
-            auto_cat_id = mrow['default_category_id']
-
-    # Nivel 2: heurística por items
-    if auto_cat_id is None and items:
-        auto_cat_id, _ = clasificar_por_items(items)
-
-    # Nivel 3: fallback
-    if auto_cat_id is None:
-        auto_cat_id = 9  # Otros
+    auto_cat_id = unified_classify(comercio, items, conn, nif=nif)
 
     # Todas las categorías disponibles
     all_categories = []

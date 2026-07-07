@@ -1,5 +1,10 @@
 {% extends "base.html" %}
 {% block title %}📊 Dashboard — MisGastos{% endblock %}
+
+{% block head %}
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+{% endblock %}
+
 {% block content %}
 <h1 class="text-3xl mb-6">📊 Dashboard</h1>
 
@@ -55,16 +60,27 @@
 {% if por_categoria %}
 <div class="bg-white rounded-lg shadow p-6 mb-8">
     <h2 class="text-xl font-bold mb-4">Gasto por categoría</h2>
-    <div class="space-y-3">
-        {% for cat in por_categoria %}
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-2">
-                <span class="w-4 h-4 rounded-full" style="background: {{ cat['color'] }}"></span>
-                <span class="font-medium">{{ cat['name'] }}</span>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+        {% if chart_json %}
+        <div id="category-chart" class="w-full"></div>
+        <script>
+            var graph = {{ chart_json | safe }};
+            Plotly.newPlot('category-chart', graph.data, graph.layout, {responsive: true, displayModeBar: false});
+        </script>
+        {% endif %}
+
+        <div class="space-y-3">
+            {% for cat in por_categoria %}
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-4 h-4 rounded-full" style="background: {{ cat['color'] }}"></span>
+                    <span class="font-medium">{{ cat['name'] }}</span>
+                </div>
+                <span class="font-bold">{{ "%.2f"|format(cat['total']) }}€</span>
             </div>
-            <span class="font-bold">{{ "%.2f"|format(cat['total']) }}€</span>
+            {% endfor %}
         </div>
-        {% endfor %}
     </div>
 </div>
 {% endif %}

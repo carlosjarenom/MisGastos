@@ -142,7 +142,7 @@ def _call_vlm(image_path: str) -> OCRResult:
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
-            field_confidence={}, model="qwen3.5:9b",
+            field_confidence={}, model="qwen3.5-9b",
             raw_output=raw, duration_ms=duration_ms,
             error="json_parse_error"
         )
@@ -156,7 +156,7 @@ def _call_vlm(image_path: str) -> OCRResult:
         metodo_pago=data.get("metodo_pago"),
         overall_confidence=data.get("overall_confidence", 0.0),
         field_confidence=data.get("field_confidence", {}),
-        model="qwen3.5:9b",
+        model="qwen3.5-9b",
         raw_output=raw,
         duration_ms=duration_ms,
     )
