@@ -155,12 +155,12 @@ A free HuggingFace token is required (the model is gated). Create one at https:/
 pip install huggingface_hub
 
 # Authenticate (first time only)
-huggingface-cli login
+hf auth login
 # Enter your token when prompted
 
 # Download the model (~5.5GB)
 mkdir -p ~/.cache/llama.cpp/models/
-huggingface-cli download Qwen/Qwen3.5-9B-GGUF \
+hf download Qwen/Qwen3.5-9B-GGUF \
     --include "Qwen_Qwen3.5-9B-Q4_K_M.gguf" \
     --include "mmproj-Qwen_Qwen3.5-9B-f16.gguf" \
     --local-dir ~/.cache/llama.cpp/models/

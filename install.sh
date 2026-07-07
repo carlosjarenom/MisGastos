@@ -150,8 +150,8 @@ REQUISITOS PREVIOS:
     - GPU NVIDIA con drivers + CUDA
     - llama-server (llama.cpp) en PATH
       Instalar con: yay -S llama.cpp-cuda  (Arch Linux)
-    - huggingface_hub (se instala automáticamente con --with-model)
     - Token de HuggingFace (gratis): https://huggingface.co/settings/tokens
+      (huggingface_hub se instala automáticamente con --with-model)
 EOF
 }
 
@@ -274,22 +274,22 @@ if [[ "$WITH_MODEL" == "true" ]]; then
         print_warn "No se encontró token de HuggingFace"
         print_info "Para --with-model necesitas un token (gratis)"
         print_info "  1. Crea uno en https://huggingface.co/settings/tokens"
-        print_info "  2. Luego ejecuta: huggingface-cli login"
+        print_info "  2. Luego ejecuta: hf auth login"
         echo
         if confirm "¿Tienes tu token de HuggingFace listo para introducir ahora?"; then
             print_info "Usa: huggingface-cli login"
-            if ! check_command huggingface-cli; then
-                print_info "Instalando huggingface_hub (incluye huggingface-cli)..."
+                    if ! check_command hf; then
+                print_info "Instalando huggingface_hub (incluye CLI hf)..."
                 pip install -q huggingface_hub
             fi
-            huggingface-cli login
+            hf auth login
         fi
     fi
     
-    if ! check_command huggingface-cli; then
-        print_warn "huggingface-cli no instalado — se instalará en el paso del modelo"
+    if ! check_command hf; then
+        print_warn "CLI hf no instalado — se instalará en el paso del modelo"
     else
-        print_ok "huggingface-cli encontrado"
+        print_ok "CLI hf encontrado"
     fi
 fi
 
@@ -380,7 +380,7 @@ else
     
     if [[ "$WITH_MODEL" == "true" ]]; then
         # Instalar huggingface_hub si no está
-        if ! check_command huggingface-cli; then
+        if ! check_command hf; then
             print_info "Instalando huggingface_hub..."
             if ! pip install -q huggingface_hub; then
                 die "No se pudo instalar huggingface_hub. Verifica tu conexión a internet."
@@ -389,7 +389,7 @@ else
         
         # Verificar token de HuggingFace
         if [[ -z "${HF_TOKEN}" ]] && [[ ! -f "$HOME/.cache/huggingface/token" ]]; then
-            die "No se encontró token de HuggingFace. Ejecuta 'huggingface-cli login' primero."
+            die "No se encontró token de HuggingFace. Ejecuta 'hf auth login' primero."
         fi
         
         # Verificar espacio en disco
@@ -403,7 +403,7 @@ else
             echo
             
             # Descargar solo los archivos necesarios
-            if ! huggingface-cli download Qwen/Qwen3.5-9B-GGUF \
+            if ! hf download Qwen/Qwen3.5-9B-GGUF \
                 --include "$MODEL_NAME" \
                 --include "$MMPROJ_NAME" \
                 --local-dir "$MODEL_DIR"; then
@@ -426,7 +426,7 @@ else
         fi
     else
         print_info "Descarga del modelo omitida (usa --with-model para descargar)"
-        print_info "Descarga manual: huggingface-cli download Qwen/Qwen3.5-9B-GGUF --include '*.gguf' --local-dir $MODEL_DIR"
+        print_info "Descarga manual: hf download Qwen/Qwen3.5-9B-GGUF --include '*.gguf' --local-dir $MODEL_DIR"
     fi
 fi
 
