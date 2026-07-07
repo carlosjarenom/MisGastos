@@ -27,7 +27,6 @@ VENV_DIR="$PROJECT_DIR/.venv"
 MODEL_DIR="$HOME/.cache/llama.cpp/models"
 MODEL_NAME="Qwen_Qwen3.5-9B-Q4_K_M.gguf"
 MMPROJ_NAME="mmproj-Qwen_Qwen3.5-9B-f16.gguf"
-MODEL_URL="https://huggingface.co/Qwen/Qwen3.5-9B-GGUF/resolve/main"
 MODEL_SIZE_GB="5.5"
 SERVICE_NAME="llama-cpp-server-misgastos.service"
 SERVICE_SRC="$PROJECT_DIR/systemd/$SERVICE_NAME"
@@ -151,7 +150,8 @@ REQUISITOS PREVIOS:
     - GPU NVIDIA con drivers + CUDA
     - llama-server (llama.cpp) en PATH
       Instalar con: yay -S llama.cpp-cuda  (Arch Linux)
-    - wget o curl (para descargar el modelo con --with-model)
+    - huggingface_hub (se instala automáticamente con --with-model)
+    - Token de HuggingFace (gratis): https://huggingface.co/settings/tokens
 EOF
 }
 
@@ -267,18 +267,29 @@ else
     print_ok "llama.cpp encontrado"
 fi
 
-# wget o curl (solo necesario si se va a descargar el modelo)
+# huggingface-cli (solo necesario si se va a descargar el modelo)
 if [[ "$WITH_MODEL" == "true" ]]; then
-    if check_command wget; then
-        DOWNLOAD_CMD="wget"
-        print_ok "wget encontrado (para descarga del modelo)"
-    elif check_command curl; then
-        DOWNLOAD_CMD="curl"
-        print_ok "curl encontrado (para descarga del modelo)"
+    # Verificar token de HuggingFace
+    if [[ -z "${HF_TOKEN}" ]] && [[ ! -f "$HOME/.cache/huggingface/token" ]]; then
+        print_warn "No se encontró token de HuggingFace"
+        print_info "Para --with-model necesitas un token (gratis)"
+        print_info "  1. Crea uno en https://huggingface.co/settings/tokens"
+        print_info "  2. Luego ejecuta: huggingface-cli login"
+        echo
+        if confirm "¿Tienes tu token de HuggingFace listo para introducir ahora?"; then
+            print_info "Usa: huggingface-cli login"
+            if ! check_command huggingface-cli; then
+                print_info "Instalando huggingface_hub (incluye huggingface-cli)..."
+                pip install -q huggingface_hub
+            fi
+            huggingface-cli login
+        fi
+    fi
+    
+    if ! check_command huggingface-cli; then
+        print_warn "huggingface-cli no instalado — se instalará en el paso del modelo"
     else
-        print_err "Ni wget ni curl están instalados (necesarios para --with-model)"
-        print_info "Instalar con: sudo pacman -S wget  (Arch Linux)"
-        PREREQ_OK=false
+        print_ok "huggingface-cli encontrado"
     fi
 fi
 
@@ -368,61 +379,54 @@ else
     fi
     
     if [[ "$WITH_MODEL" == "true" ]]; then
+        # Instalar huggingface_hub si no está
+        if ! check_command huggingface-cli; then
+            print_info "Instalando huggingface_hub..."
+            if ! pip install -q huggingface_hub; then
+                die "No se pudo instalar huggingface_hub. Verifica tu conexión a internet."
+            fi
+        fi
+        
+        # Verificar token de HuggingFace
+        if [[ -z "${HF_TOKEN}" ]] && [[ ! -f "$HOME/.cache/huggingface/token" ]]; then
+            die "No se encontró token de HuggingFace. Ejecuta 'huggingface-cli login' primero."
+        fi
+        
         # Verificar espacio en disco
         AVAILABLE_GB=$(df -BG "$MODEL_DIR" | awk 'NR==2 {gsub("G","",$4); print $4}')
         if [[ "$AVAILABLE_GB" =~ ^[0-9]+$ ]] && [[ $AVAILABLE_GB -lt 7 ]]; then
-            print_err "Espacio insuficiente en disco: ${AVAILABLE_GB}GB disponibles, se necesitan ~7GB"
-            print_info "Libera espacio o descarga el modelo en otra ubicación"
-            NEED_MODEL=true  # seguirá marcado como pendiente
-        elif confirm "Se descargarán ~${MODEL_SIZE_GB}GB. ¿Continuar?"; then
-            print_info "Descargando modelo (puede tardar varios minutos según tu conexión)..."
-            print_info "Puedes interrumpir con Ctrl+C y reanudar más tarde (wget -c retoma)"
+            die "Espacio insuficiente en disco: ${AVAILABLE_GB}GB disponibles, se necesitan ~7GB"
+        fi
+        
+        if confirm "Se descargarán ~${MODEL_SIZE_GB}GB. ¿Continuar?"; then
+            print_info "Descargando modelo con huggingface-cli (puede tardar varios minutos)..."
             echo
             
-            download_file() {
-                local url="$1"
-                local dest="$2"
-                local desc="$3"
-                if [[ "$DOWNLOAD_CMD" == "wget" ]]; then
-                    if ! wget -c "$url" -O "$dest"; then
-                        print_err "Error descargando $desc"
-                        return 1
-                    fi
-                else  # curl
-                    if ! curl -L -C - "$url" -o "$dest"; then
-                        print_err "Error descargando $desc"
-                        return 1
-                    fi
-                fi
-                return 0
-            }
-            
-            if [[ ! -f "$MODEL_PATH" ]]; then
-                if download_file "$MODEL_URL/$MODEL_NAME" "$MODEL_PATH" "modelo principal"; then
-                    print_ok "Modelo principal descargado"
+            # Descargar solo los archivos necesarios
+            if ! huggingface-cli download Qwen/Qwen3.5-9B-GGUF \
+                --include "$MODEL_NAME" \
+                --include "$MMPROJ_NAME" \
+                --local-dir "$MODEL_DIR"; then
+                print_err "Error descargando el modelo"
+                NEED_MODEL=true
+            else
+                print_ok "Descarga completada"
+                # Resetear NEED_MODEL si ambos archivos existen
+                if [[ -f "$MODEL_PATH" && -f "$MMPROJ_PATH" ]]; then
+                    NEED_MODEL=false
+                    print_ok "Modelo principal descargado ($MODEL_NAME)"
+                    print_ok "Proyector de visión descargado ($MMPROJ_NAME)"
                 else
+                    print_warn "Descarga completada pero faltan archivos. Revisa $MODEL_DIR"
                     NEED_MODEL=true
                 fi
-            fi
-            
-            if [[ ! -f "$MMPROJ_PATH" ]]; then
-                if download_file "$MODEL_URL/$MMPROJ_NAME" "$MMPROJ_PATH" "proyector de visión"; then
-                    print_ok "Proyector de visión descargado"
-                else
-                    NEED_MODEL=true
-                fi
-            fi
-            
-            # Resetear NEED_MODEL si ambos archivos existen tras la descarga
-            if [[ -f "$MODEL_PATH" && -f "$MMPROJ_PATH" ]]; then
-                NEED_MODEL=false
             fi
         else
             print_warn "Descarga cancelada — deberás descargar el modelo manualmente"
         fi
     else
         print_info "Descarga del modelo omitida (usa --with-model para descargar)"
-        print_info "Descarga manual desde: https://huggingface.co/Qwen/Qwen3.5-9B-GGUF"
+        print_info "Descarga manual: huggingface-cli download Qwen/Qwen3.5-9B-GGUF --include '*.gguf' --local-dir $MODEL_DIR"
     fi
 fi
 

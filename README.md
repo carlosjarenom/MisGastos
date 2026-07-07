@@ -148,16 +148,25 @@ pip install -r requirements.txt
 
 ### 3. Descargar el modelo
 
+Se requiere un token gratuito de HuggingFace (el modelo está gated). Crealo en https://huggingface.co/settings/tokens:
+
 ```bash
+# Instalar huggingface_hub si no lo tienes
+pip install huggingface_hub
+
+# Autenticarse (solo la primera vez)
+huggingface-cli login
+# Introduce tu token cuando se te pida
+
+# Descargar el modelo (~5.5GB)
 mkdir -p ~/.cache/llama.cpp/models/
-cd ~/.cache/llama.cpp/models/
-
-# Modelo principal (Q4_K_M, ~5.5GB)
-wget https://huggingface.co/Qwen/Qwen3.5-9B-GGUF/resolve/main/Qwen_Qwen3.5-9B-Q4_K_M.gguf
-
-# Proyector de visión (~50MB)
-wget https://huggingface.co/Qwen/Qwen3.5-9B-GGUF/resolve/main/mmproj-Qwen_Qwen3.5-9B-f16.gguf
+huggingface-cli download Qwen/Qwen3.5-9B-GGUF \
+    --include "Qwen_Qwen3.5-9B-Q4_K_M.gguf" \
+    --include "mmproj-Qwen_Qwen3.5-9B-f16.gguf" \
+    --local-dir ~/.cache/llama.cpp/models/
 ```
+
+> **Nota:** `wget`/`curl` directo ya no funciona porque HuggingFace requiere autentificación.
 
 ### 4. Instalar y compilar llama.cpp
 
