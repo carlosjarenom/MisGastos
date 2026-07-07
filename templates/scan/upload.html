@@ -3,42 +3,39 @@
 {% block content %}
 
 <div class="max-w-2xl mx-auto">
- <h1 class="text-2xl font-bold mb-6">📷 Subir ticket</h1>
+ <h1 class="text-xl font-semibold mb-6">📷 Subir ticket</h1>
 
  {% if error %}
- <div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
- <p class="font-bold text-red-800">❌ No se pudo procesar la imagen</p>
- <p class="text-red-700 text-sm mt-1">{{ error }}</p>
+ <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-600 p-4 mb-6">
+ <p class="font-bold text-red-800 dark:text-red-400">❌ No se pudo procesar la imagen</p>
+ <p class="text-red-700 dark:text-red-300 text-sm mt-1">{{ error }}</p>
  </div>
  {% endif %}
 
- <!-- Zona de upload -->
  <form id="upload-form" hx-post="/scan/upload"
  hx-encoding="multipart/form-data"
  hx-target="#result"
  hx-swap="innerHTML"
  hx-indicator="#loading"
- class="border-2 border-dashed border-gray-300 rounded-lg p-8 bg-white text-center">
+ class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-8 bg-white dark:bg-darkcanvas-subtle text-center">
 
  <input type="file" name="image" accept="image/*"
  class="hidden" id="file-input">
 
- <!-- Vista previa con rotación -->
  <div id="preview-container" class="hidden mb-4">
  <div class="relative inline-block">
- <img id="preview-image" class="max-h-64 mx-auto rounded shadow transition-transform duration-200"
+ <img id="preview-image" class="max-h-64 mx-auto rounded shadow dark:bg-darkcanvas transition-transform duration-200"
  style="object-fit: contain; transform: rotate(0deg);">
  </div>
- <p class="text-sm text-gray-500 mt-2" id="preview-name"></p>
+ <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-2" id="preview-name"></p>
 
- <!-- Controles de rotación (solo rotan la preview, no procesan) -->
  <div class="flex justify-center gap-2 mt-3">
  <button type="button" onclick="rotatePreview(-90)"
- class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1.5 rounded text-sm font-bold">
+ class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-darkfg px-3 py-1.5 rounded text-sm font-bold">
  ↺ Izquierda
  </button>
  <button type="button" onclick="rotatePreview(90)"
- class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1.5 rounded text-sm font-bold">
+ class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-darkfg px-3 py-1.5 rounded text-sm font-bold">
  ↻ Derecha
  </button>
  </div>
@@ -47,38 +44,34 @@
  <div id="upload-buttons">
  <button type="button"
  onclick="document.getElementById('file-input').click()"
- class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold">
+ class="bg-blue-600 dark:bg-accent hover:bg-blue-700 dark:hover:bg-accent-emphasis text-white px-6 py-2.5 rounded-lg font-bold">
  📂 Seleccionar imagen
  </button>
- <p class="mt-3 text-gray-500 text-sm">o arrastra una imagen aquí</p>
+ <p class="mt-3 text-gray-500 dark:text-darkfg-muted text-sm">o arrastra una imagen aquí</p>
  </div>
 
- <!-- Botón Procesar (oculto hasta que se selecciona imagen) -->
  <div id="process-button" class="hidden mt-4">
  <button type="submit"
- class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold text-lg">
+ class="bg-green-600 dark:bg-success hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold text-lg dark:opacity-90">
  ⚡ Procesar ticket
  </button>
- <p class="text-sm text-gray-500 mt-2">
+ <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-2">
  Pulsa cuando la imagen esté correctamente orientada
  </p>
  </div>
  </form>
 
- <!-- Spinner de carga (oculto por defecto, HTMX lo muestra) -->
  <div id="loading" class="hidden text-center py-8">
- <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
- <p class="mt-4 text-lg font-semibold text-gray-700">Procesando ticket...</p>
- <p class="text-sm text-gray-500 mt-1">El modelo de IA está leyendo el ticket (3-10 segundos)</p>
+ <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 dark:border-accent border-t-transparent"></div>
+ <p class="mt-4 text-lg font-semibold text-gray-700 dark:text-darkfg">Procesando ticket...</p>
+ <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-1">El modelo de IA está leyendo el ticket (3-10 segundos)</p>
  </div>
 
- <!-- Resultado (HTMX lo rellena) -->
  <div id="result" class="mt-6"></div>
 </div>
 
 <script>
  let currentRotation = 0;
-
  const fileInput = document.getElementById('file-input');
  const form = document.getElementById('upload-form');
  const previewContainer = document.getElementById('preview-container');
@@ -87,19 +80,15 @@
  const uploadButtons = document.getElementById('upload-buttons');
  const processButton = document.getElementById('process-button');
 
- // Función para rotar la preview
  window.rotatePreview = function(degrees) {
  currentRotation = (currentRotation + degrees) % 360;
  if (currentRotation < 0) currentRotation += 360;
  previewImage.style.transform = `rotate(${currentRotation}deg)`;
  };
 
- // Cuando se selecciona archivo
  fileInput.addEventListener('change', function(e) {
  const file = e.target.files[0];
- if (file) {
- showPreview(file);
- }
+ if (file) { showPreview(file); }
  });
 
  function showPreview(file) {
@@ -116,15 +105,8 @@
  reader.readAsDataURL(file);
  }
 
- // Drag & drop
- form.addEventListener('dragover', e => {
- e.preventDefault();
- form.classList.add('border-blue-500', 'bg-blue-50');
- });
- form.addEventListener('dragleave', e => {
- e.preventDefault();
- form.classList.remove('border-blue-500', 'bg-blue-50');
- });
+ form.addEventListener('dragover', e => { e.preventDefault(); form.classList.add('border-blue-500', 'bg-blue-50'); });
+ form.addEventListener('dragleave', e => { e.preventDefault(); form.classList.remove('border-blue-500', 'bg-blue-50'); });
  form.addEventListener('drop', e => {
  e.preventDefault();
  form.classList.remove('border-blue-500', 'bg-blue-50');
@@ -137,38 +119,27 @@
  }
  });
 
- // Antes de enviar el form, si hay rotación, rotar la imagen en canvas
- // y reemplazar el archivo del input
  form.addEventListener('htmx:configRequest', function(evt) {
  if (currentRotation !== 0 && previewImage.src) {
- // Crear canvas con la imagen rotada
  const canvas = document.createElement('canvas');
  const ctx = canvas.getContext('2d');
  const img = new Image();
  img.src = previewImage.src;
-
- // Como esto es async, necesitamos bloquear el envío
  evt.preventDefault();
-
  img.onload = function() {
  if (currentRotation === 90 || currentRotation === 270) {
- canvas.width = img.height;
- canvas.height = img.width;
+ canvas.width = img.height; canvas.height = img.width;
  } else {
- canvas.width = img.width;
- canvas.height = img.height;
+ canvas.width = img.width; canvas.height = img.height;
  }
  ctx.translate(canvas.width / 2, canvas.height / 2);
  ctx.rotate(currentRotation * Math.PI / 180);
  ctx.drawImage(img, -img.width / 2, -img.height / 2);
-
  canvas.toBlob(function(blob) {
  const file = new File([blob], 'rotated.jpg', { type: 'image/jpeg' });
  const dt = new DataTransfer();
  dt.items.add(file);
  fileInput.files = dt.files;
-
- // Re-enviar el formulario
  htmx.trigger(form, 'submit');
  }, 'image/jpeg', 0.9);
  };
