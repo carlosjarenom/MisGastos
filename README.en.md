@@ -189,20 +189,26 @@ llama-server --version
 
 ### 5. Install the systemd service
 
-Edit `systemd/llama-cpp-server-misgastos.service` and verify the paths match your system:
-
-```ini
-ExecStart=~/local/bin/llama-server \
-  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
-  ...
-```
-
-Replace `USER` with your actual username. Then:
+The `systemd/llama-cpp-server-misgastos.service` file already has correct paths using `~` (your home). Copy it to your user systemd directory:
 
 ```bash
 cp systemd/llama-cpp-server-misgastos.service ~/.config/systemd/user/
 systemctl --user daemon-reload
+systemctl --user enable llama-cpp-server-misgastos
+systemctl --user start llama-cpp-server-misgastos
+```
+
+**To test manually** (without systemd, in the terminal):
+
+```bash
+llama-server \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
+  --port 8005 \
+  --ctx-size 16384 \
+  --gpu-layers 99 \
+  --threads 16 \
+  --flash-attn
 ```
 
 ### 6. Make scripts executable

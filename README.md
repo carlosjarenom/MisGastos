@@ -189,20 +189,26 @@ llama-server --version
 
 ### 5. Instalar el servicio systemd
 
-Editar `systemd/llama-cpp-server-misgastos.service` y verificar que las rutas coinciden con tu sistema:
-
-```ini
-ExecStart=~/local/bin/llama-server \
-  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
-  ...
-```
-
-Reemplazar `USUARIO` con tu nombre de usuario real. Luego:
+El archivo `systemd/llama-cpp-server-misgastos.service` ya tiene las rutas correctas con `~` (tu home). Copialo al directorio de systemd de usuario:
 
 ```bash
 cp systemd/llama-cpp-server-misgastos.service ~/.config/systemd/user/
 systemctl --user daemon-reload
+systemctl --user enable llama-cpp-server-misgastos
+systemctl --user start llama-cpp-server-misgastos
+```
+
+**Para probar manualmente** (sin systemd, en la terminal):
+
+```bash
+llama-server \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
+  --port 8005 \
+  --ctx-size 16384 \
+  --gpu-layers 99 \
+  --threads 16 \
+  --flash-attn
 ```
 
 ### 6. Hacer ejecutables los scripts
