@@ -120,10 +120,10 @@ Receipt photo → Preprocessing (resize to 1024px)
 
 ### AI models
 
-Download the GGUF files from [Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B-GGUF) and place them in `~/.cache/llama.cpp/models/`:
+Download the GGUF files from [Hugging Face](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF) and place them in `~/.cache/llama.cpp/models/`:
 
-- `Qwen_Qwen3.5-9B-Q4_K_M.gguf` (~5.5 GB) — main model
-- `mmproj-Qwen_Qwen3.5-9B-f16.gguf` (~50 MB) — vision projector
+- `Qwen3.5-9B-Q4_K_M.gguf` (~5.5 GB) — main model
+- `mmproj-BF16.gguf` (~50 MB) — vision projector
 
 > **Lighter alternative:** Qwen3.5-3B (~3GB Q4) for GPUs with less VRAM. Edit `systemd/llama-cpp-server-misgastos.service` with the correct filenames.
 
@@ -160,9 +160,9 @@ hf auth login
 
 # Download the model (~5.5GB)
 mkdir -p ~/.cache/llama.cpp/models/
-hf download Qwen/Qwen3.5-9B-GGUF \
-    --include "Qwen_Qwen3.5-9B-Q4_K_M.gguf" \
-    --include "mmproj-Qwen_Qwen3.5-9B-f16.gguf" \
+hf download unsloth/Qwen3.5-9B-GGUF \
+    --include "Qwen3.5-9B-Q4_K_M.gguf" \
+    --include "mmproj-BF16.gguf" \
     --local-dir ~/.cache/llama.cpp/models/
 ```
 
@@ -193,8 +193,8 @@ Edit `systemd/llama-cpp-server-misgastos.service` and verify the paths match you
 
 ```ini
 ExecStart=/home/USER/.local/bin/llama-server \
-  -m /home/USER/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj /home/USER/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  -m /home/USER/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj /home/USER/.cache/llama.cpp/models/mmproj-BF16.gguf \
   ...
 ```
 
@@ -445,8 +445,8 @@ The systemd service (`~/.config/systemd/user/llama-cpp-server-misgastos.service`
 
 ```bash
 llama-server \
-  -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
   --port 8005 \
   --host 0.0.0.0 \
   --ctx-size 16384 \

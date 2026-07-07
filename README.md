@@ -120,10 +120,10 @@ Foto del ticket → Preprocesamiento (redimensionar a 1024px)
 
 ### Modelos de IA
 
-Descargar los archivos GGUF de [Hugging Face](https://huggingface.co/Qwen/Qwen3.5-9B-GGUF) y colocarlos en `~/.cache/llama.cpp/models/`:
+Descargar los archivos GGUF de [Hugging Face](https://huggingface.co/unsloth/Qwen3.5-9B-GGUF) y colocarlos en `~/.cache/llama.cpp/models/`:
 
-- `Qwen_Qwen3.5-9B-Q4_K_M.gguf` (~5.5 GB) — modelo principal
-- `mmproj-Qwen_Qwen3.5-9B-f16.gguf` (~50 MB) — proyector de visión
+- `Qwen3.5-9B-Q4_K_M.gguf` (~5.5 GB) — modelo principal
+- `mmproj-BF16.gguf` (~50 MB) — proyector de visión
 
 > **Alternativa más ligera:** Qwen3.5-3B (~3GB Q4) para GPUs con menos VRAM. Editar `systemd/llama-cpp-server-misgastos.service` con los nombres correctos.
 
@@ -160,9 +160,9 @@ hf auth login
 
 # Descargar el modelo (~5.5GB)
 mkdir -p ~/.cache/llama.cpp/models/
-hf download Qwen/Qwen3.5-9B-GGUF \
-    --include "Qwen_Qwen3.5-9B-Q4_K_M.gguf" \
-    --include "mmproj-Qwen_Qwen3.5-9B-f16.gguf" \
+hf download unsloth/Qwen3.5-9B-GGUF \
+    --include "Qwen3.5-9B-Q4_K_M.gguf" \
+    --include "mmproj-BF16.gguf" \
     --local-dir ~/.cache/llama.cpp/models/
 ```
 
@@ -193,8 +193,8 @@ Editar `systemd/llama-cpp-server-misgastos.service` y verificar que las rutas co
 
 ```ini
 ExecStart=/home/USUARIO/.local/bin/llama-server \
-  -m /home/USUARIO/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  -m /home/USUARIO/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-BF16.gguf \
   ...
 ```
 
@@ -445,8 +445,8 @@ El servicio systemd (`~/.config/systemd/user/llama-cpp-server-misgastos.service`
 
 ```bash
 llama-server \
-  -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
   --port 8005 \
   --host 0.0.0.0 \
   --ctx-size 16384 \

@@ -25,8 +25,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 VENV_DIR="$PROJECT_DIR/.venv"
 MODEL_DIR="$HOME/.cache/llama.cpp/models"
-MODEL_NAME="Qwen_Qwen3.5-9B-Q4_K_M.gguf"
-MMPROJ_NAME="mmproj-Qwen_Qwen3.5-9B-f16.gguf"
+MODEL_NAME="Qwen3.5-9B-Q4_K_M.gguf"
+MMPROJ_NAME="mmproj-BF16.gguf"
 MODEL_SIZE_GB="5.5"
 SERVICE_NAME="llama-cpp-server-misgastos.service"
 SERVICE_SRC="$PROJECT_DIR/systemd/$SERVICE_NAME"
@@ -403,7 +403,7 @@ else
             echo
             
             # Descargar solo los archivos necesarios
-            if ! hf download Qwen/Qwen3.5-9B-GGUF \
+            if ! hf download unsloth/Qwen3.5-9B-GGUF \
                 --include "$MODEL_NAME" \
                 --include "$MMPROJ_NAME" \
                 --local-dir "$MODEL_DIR"; then
@@ -426,7 +426,7 @@ else
         fi
     else
         print_info "Descarga del modelo omitida (usa --with-model para descargar)"
-        print_info "Descarga manual: hf download Qwen/Qwen3.5-9B-GGUF --include '*.gguf' --local-dir $MODEL_DIR"
+        print_info "Descarga manual: hf download unsloth/Qwen3.5-9B-GGUF --include '*.gguf' --local-dir $MODEL_DIR"
     fi
 fi
 
@@ -582,7 +582,7 @@ if [[ "$NEED_MODEL" == "true" ]]; then
     echo "  Falta descargar el modelo. Opción:"
     echo "    ./scripts/install.sh --with-model"
     echo "  O descarga manual desde:"
-    echo "    https://huggingface.co/Qwen/Qwen3.5-9B-GGUF"
+    echo "    https://huggingface.co/unsloth/Qwen3.5-9B-GGUF"
     echo
 fi
 

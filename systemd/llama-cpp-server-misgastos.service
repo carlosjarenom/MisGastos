@@ -5,8 +5,8 @@ After=network.target
 [Service]
 Type=simple
 ExecStart=/home/carlos/.local/bin/llama-server \
-  -m /home/carlos/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj /home/carlos/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  -m /home/carlos/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj /home/carlos/.cache/llama.cpp/models/mmproj-BF16.gguf \
   --port 8005 \
   --host 0.0.0.0 \
   --ctx-size 16384 \
