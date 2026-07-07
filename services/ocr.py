@@ -4,10 +4,13 @@ services/ocr.py — Backend OCR vía VLM (Qwen3.5-9B)
 import json
 import base64
 import time
+import logging
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
 from config import DOUBLE_CHECK_THRESHOLD
+
+log = logging.getLogger(__name__)
 
 # ============================================================
 # PROMPTS
@@ -160,15 +163,41 @@ def _call_vlm(image_path: str) -> OCRResult:
 
     try:
         raw = call_vlm(messages)
+    except ValueError as e:
+        # VLM devolvió respuesta vacía — probar formato alternativo
+        # Algunas versiones de llama.cpp no aceptan data:image/jpeg;base64,
+        # solo el base64 crudo
+        duration_ms = int((time.time() - t0) * 1000)
+        log.warning(f"Primer intento falló ({e}). Probando formato alternativo...")
+
+        messages_alt = [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": img_b64}},
+                {"type": "text", "text": USER_PROMPT},
+            ]},
+        ]
+
+        try:
+            raw = call_vlm(messages_alt)
+        except (ValueError, Exception) as e2:
+            # Ambos formatos fallaron
+            return OCRResult(
+                fecha=None, comercio=None, nif=None, items=[], total=None,
+                metodo_pago=None, overall_confidence=0.0,
+                field_confidence={}, model="qwen3.5-9b",
+                raw_output="", duration_ms=duration_ms,
+                error=f"vlm_empty_response: {e2}"
+            )
     except Exception as e:
-        # VLM caído, timeout, o cualquier error de conexión
+        # Error de conexión (VLM caído, timeout, etc.)
         duration_ms = int((time.time() - t0) * 1000)
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5-9b",
             raw_output="", duration_ms=duration_ms,
-            error=f"vlm_unavailable: {type(e).__name__}"
+            error=f"vlm_unavailable: {type(e).__name__}: {e}"
         )
 
     duration_ms = int((time.time() - t0) * 1000)
@@ -179,12 +208,11 @@ def _call_vlm(image_path: str) -> OCRResult:
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError:
-        # Incluir info de debug para saber qué devolvió el VLM
         raw_preview = raw[:300] if raw else "(empty response)"
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
-            field_confidence={}, model="qwen3.5:9b",
+            field_confidence={}, model="qwen3.5-9b",
             raw_output=raw, duration_ms=duration_ms,
             error=f"json_parse_error | VLM response (first 300 chars): {raw_preview}"
         )
@@ -198,7 +226,7 @@ def _call_vlm(image_path: str) -> OCRResult:
         metodo_pago=data.get("metodo_pago"),
         overall_confidence=data.get("overall_confidence", 0.0),
         field_confidence=data.get("field_confidence", {}),
-        model="qwen3.5:9b",
+        model="qwen3.5-9b",
         raw_output=raw,
         duration_ms=duration_ms,
     )
