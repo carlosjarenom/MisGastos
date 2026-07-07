@@ -148,15 +148,27 @@ def _clean_json_response(raw: str) -> str:
 
 
 def _call_vlm(image_path: str) -> OCRResult:
+    """Llamar al VLM con formato data URI limpio (sin newlines en base64).
+
+    llama.cpp tiene un bug con el formato data:image/jpeg;base64,
+    devuelve "Invalid url value" (500).
+    Solución: codificar base64 sin newlines y usar data URI estricto.
+    Si falla, intentar con requests directo (bypass de librería openai).
+    """
     t0 = time.time()
 
     with open(image_path, "rb") as f:
-        img_b64 = base64.b64encode(f.read()).decode()
+        img_bytes = f.read()
+    # Codificar base64 y quitar TODOS los newlines (llama.cpp es estricto)
+    img_b64 = base64.b64encode(img_bytes).decode().replace('\n', '').replace('\r', '')
+
+    # Formato data URI estricto (sin espacios, sin newlines)
+    data_uri = f"data:image/jpeg;base64,{img_b64}"
 
     messages = [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": [
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}},
+            {"type": "image_url", "image_url": {"url": data_uri}},
             {"type": "text", "text": USER_PROMPT},
         ]},
     ]
@@ -164,24 +176,14 @@ def _call_vlm(image_path: str) -> OCRResult:
     try:
         raw = call_vlm(messages)
     except ValueError as e:
-        # VLM devolvió respuesta vacía — probar formato alternativo
-        # Algunas versiones de llama.cpp no aceptan data:image/jpeg;base64,
-        # solo el base64 crudo
+        # Si el formato data URI falla, intentar con requests directo
+        # (bypass de la librería openai)
         duration_ms = int((time.time() - t0) * 1000)
-        log.warning(f"Primer intento falló ({e}). Probando formato alternativo...")
-
-        messages_alt = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": img_b64}},
-                {"type": "text", "text": USER_PROMPT},
-            ]},
-        ]
+        log.warning(f"Formato data URI falló ({e}). Probando con requests directo...")
 
         try:
-            raw = call_vlm(messages_alt)
-        except (ValueError, Exception) as e2:
-            # Ambos formatos fallaron
+            raw = _call_vlm_direct(image_path, img_b64)
+        except Exception as e2:
             return OCRResult(
                 fecha=None, comercio=None, nif=None, items=[], total=None,
                 metodo_pago=None, overall_confidence=0.0,
@@ -189,20 +191,31 @@ def _call_vlm(image_path: str) -> OCRResult:
                 raw_output="", duration_ms=duration_ms,
                 error=f"vlm_empty_response: {e2}"
             )
+
     except Exception as e:
-        # Error de conexión (VLM caído, timeout, etc.)
         duration_ms = int((time.time() - t0) * 1000)
+        error_msg = str(e)
+        # Si el error contiene "Invalid url value", es el bug de llama.cpp
+        if "Invalid url value" in error_msg:
+            return OCRResult(
+                fecha=None, comercio=None, nif=None, items=[], total=None,
+                metodo_pago=None, overall_confidence=0.0,
+                field_confidence={}, model="qwen3.5-9b",
+                raw_output="", duration_ms=duration_ms,
+                error=f"llama_cpp_invalid_url: llama.cpp no acepta el formato de imagen. "
+                f"Error: {error_msg}. "
+                f"Verifica versión de llama.cpp (necesita soporte vision)."
+            )
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5-9b",
             raw_output="", duration_ms=duration_ms,
-            error=f"vlm_unavailable: {type(e).__name__}: {e}"
+            error=f"vlm_unavailable: {type(e).__name__}: {error_msg}"
         )
 
     duration_ms = int((time.time() - t0) * 1000)
 
-    # Limpiar markdown fences antes de parsear JSON
     cleaned = _clean_json_response(raw)
 
     try:
@@ -230,6 +243,52 @@ def _call_vlm(image_path: str) -> OCRResult:
         raw_output=raw,
         duration_ms=duration_ms,
     )
+
+
+def _call_vlm_direct(image_path: str, img_b64: str) -> str:
+    """Llamar al VLM con requests directo (bypass de librería openai).
+
+    Algunas versiones de la librería openai manipulan el base64
+    y rompen el formato. Usar requests directamente es más fiable.
+    """
+    import requests
+    from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE, LLAMA_MAX_TOKENS
+
+    data_uri = f"data:image/jpeg;base64,{img_b64}"
+
+    payload = {
+        "model": LLAMA_MODEL,
+        "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": [
+                {"type": "image_url", "image_url": {"url": data_uri}},
+                {"type": "text", "text": USER_PROMPT},
+            ]},
+        ],
+        "temperature": LLAMA_TEMPERATURE,
+        "top_p": 0.9,
+        "max_tokens": LLAMA_MAX_TOKENS,
+    }
+
+    response = requests.post(
+        f"{LLAMA_ENDPOINT}/chat/completions",
+        json=payload,
+        timeout=120,
+    )
+
+    if response.status_code != 200:
+        raise ValueError(
+            f"VLM error {response.status_code}: {response.text[:300]}"
+        )
+
+    data = response.json()
+    content = data["choices"][0]["message"]["content"]
+
+    if not content:
+        finish_reason = data["choices"][0].get("finish_reason", "unknown")
+        raise ValueError(f"VLM response vacío. finish_reason={finish_reason}")
+
+    return content.strip()
 
 
 def _passes_sanity_check(r: OCRResult) -> bool:
