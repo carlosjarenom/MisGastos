@@ -136,6 +136,13 @@ def dashboard():
                 'over': pct > 100
             })
 
+    # Num tickets del mes
+    c.execute(
+        "SELECT COUNT(*) FROM transactions WHERE kind='expense' AND date >= ? AND date <= ?",
+        (month_start, month_end)
+    )
+    num_tickets = c.fetchone()[0] or 0
+
     # Últimos 5 gastos
     c.execute("""
         SELECT t.*, c.name as category_name, m.name as merchant_name
@@ -158,6 +165,7 @@ def dashboard():
         review_queue_count=review_count,
         budgets=budgets,
         ultimos=ultimos,
+        num_tickets=num_tickets,
     )
 
 
@@ -507,6 +515,83 @@ def expenses():
         "expenses/list.html",
         expenses=expenses_list,
         categories=categories,
+        review_queue_count=review_count,
+    )
+
+
+@app.route("/expense/new", methods=["GET", "POST"])
+def new_expense():
+    """Formulario para añadir un gasto manual."""
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT id, name, color, parent_id FROM categories ORDER BY id")
+    all_categories = c.fetchall()
+
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+
+    if request.method == "POST":
+        date = request.form.get("date", "")
+        total = float(request.form.get("total", 0))
+        merchant = request.form.get("merchant", "").strip()
+        description = request.form.get("description", "").strip()
+        category = int(request.form.get("category", 9))
+        payment = request.form.get("payment_method", "") or None
+        nif = request.form.get("nif", "").strip()
+        kind = request.form.get("kind", "expense")
+
+        if not date or total <= 0:
+            conn.close()
+            return "Fecha y total son obligatorios", 400
+
+        # Crear merchant si existe
+        merchant_id = None
+        if merchant:
+            c.execute("SELECT id FROM merchants WHERE name = ?", (merchant,))
+            mrow = c.fetchone()
+            if mrow:
+                merchant_id = mrow['id']
+            else:
+                try:
+                    c.execute("INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
+                              (merchant, nif or None, category))
+                    merchant_id = c.lastrowid
+                except sqlite3.IntegrityError:
+                    c.execute("SELECT id FROM merchants WHERE nif = ?", (nif,))
+                    dup = c.fetchone()
+                    merchant_id = dup['id'] if dup else None
+
+        # Insertar transacción
+        c.execute("""
+            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (kind, date, description or merchant, merchant_id, total, payment, category, 'manual'))
+        txn_id = c.lastrowid
+
+        # Insertar items si hay
+        item_descs = request.form.getlist("item_desc[]")
+        item_qtys = request.form.getlist("item_qty[]")
+        item_prices = request.form.getlist("item_price[]")
+        for i in range(len(item_descs)):
+            desc = item_descs[i].strip()
+            if desc:
+                qty = int(item_qtys[i]) if i < len(item_qtys) and item_qtys[i] else 1
+                price = float(item_prices[i]) if i < len(item_prices) and item_prices[i] else 0
+                if price > 0:
+                    c.execute("""
+                        INSERT INTO transaction_items (transaction_id, description, quantity, unit_price)
+                        VALUES (?, ?, ?, ?)
+                    """, (txn_id, desc, qty, price))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("expense_detail", txn_id=txn_id))
+
+    conn.close()
+    return render_template(
+        "expenses/new.html",
+        all_categories=all_categories,
         review_queue_count=review_count,
     )
 

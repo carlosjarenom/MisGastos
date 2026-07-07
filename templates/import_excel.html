@@ -1,29 +1,29 @@
 {% extends "base.html" %}
-{% block title %}📥 Importar Excel — MisGastos{% endblock %}
+{% block title %}Importar Excel — MisGastos{% endblock %}
 {% block content %}
 <div class="mb-4">
-    <a href="/" class="text-blue-600 hover:underline">← Volver al dashboard</a>
+    <a href="/" class="text-accent hover:underline text-sm">← Volver al dashboard</a>
 </div>
 
-<h1 class="text-2xl mb-6">📥 Importar Excel</h1>
+<h1 class="text-xl font-semibold mb-6">📥 Importar Excel</h1>
 
 {% if result %}
-<div class="bg-white rounded-lg shadow p-6 mb-6">
-    <h2 class="text-xl font-bold mb-4">Resultado de importación</h2>
+<div class="border border-gray-200 dark:border-gray-700 rounded p-6 mb-6 bg-white dark:bg-darkcanvas-subtle">
+    <h2 class="text-lg font-semibold mb-4">Resultado de importación</h2>
     <div class="grid grid-cols-2 gap-4">
-        <div class="bg-green-50 p-4 rounded">
-            <p class="text-sm text-gray-600">Importados</p>
-            <p class="text-2xl font-bold text-green-600">{{ result.imported }}</p>
+        <div class="bg-green-50 dark:bg-green-900/20 p-4 rounded border border-green-200 dark:border-green-800">
+            <p class="text-sm text-fg-muted">Importados</p>
+            <p class="text-2xl font-bold text-success">{{ result.imported }}</p>
         </div>
-        <div class="bg-red-50 p-4 rounded">
-            <p class="text-sm text-gray-600">Saltados</p>
-            <p class="text-2xl font-bold text-red-600">{{ result.skipped }}</p>
+        <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded border border-red-200 dark:border-red-800">
+            <p class="text-sm text-fg-muted">Saltados</p>
+            <p class="text-2xl font-bold text-danger">{{ result.skipped }}</p>
         </div>
     </div>
     {% if result.errors %}
     <div class="mt-4">
-        <p class="font-semibold text-red-600">Errores (primos 10):</p>
-        <ul class="list-disc ml-6 text-sm text-red-700">
+        <p class="font-semibold text-danger">Errores (primos 10):</p>
+        <ul class="list-disc ml-6 text-sm text-danger">
             {% for err in result.errors[:10] %}
             <li>{{ err }}</li>
             {% endfor %}
@@ -33,28 +33,28 @@
 </div>
 {% endif %}
 
-<div class="bg-white rounded-lg shadow p-8">
-    <div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
-        <p class="font-bold text-amber-800">⚠️ Función en mantenimiento</p>
-        <p class="text-amber-700">El importador de Excel se está reescribiendo para soportar correctamente el formato del archivo de Sonia (gastos | ingresos, una hoja por mes, métodos de pago abreviados, etc.). Volverá pronto.</p>
+<div class="border border-gray-200 dark:border-gray-700 rounded p-8 bg-white dark:bg-darkcanvas-subtle">
+    <div class="bg-amber-50 dark:bg-yellow-900/20 border-l-4 border-amber-400 p-4 mb-6">
+        <p class="font-bold text-amber-800 dark:text-amber-400">⚠️ Función en mantenimiento</p>
+        <p class="text-amber-700 dark:text-amber-300">El importador de Excel se está reescribiendo para soportar correctamente el formato del archivo de Sonia (gastos | ingresos, una hoja por mes, métodos de pago abreviados, etc.). Volverá pronto.</p>
     </div>
 
     <form method="POST" enctype="multipart/form-data" class="space-y-4 opacity-50 pointer-events-none">
         <div>
-            <label class="block text-lg font-semibold mb-2">Selecciona archivo Excel</label>
+            <label class="block text-sm font-semibold mb-2">Selecciona archivo Excel</label>
             <input type="file" name="file" accept=".xlsx,.xls"
-                   class="w-full border rounded p-3" required disabled>
-            <p class="text-sm text-gray-500 mt-1">Formatos soportados: .xlsx, .xls</p>
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5" required disabled>
+            <p class="text-sm text-fg-muted mt-1">Formatos soportados: .xlsx, .xls</p>
         </div>
 
-        <button type="submit" class="bg-gray-400 text-white px-6 py-2 rounded font-bold" disabled>
+        <button type="submit" class="bg-gray-400 text-white px-6 py-2 rounded font-medium" disabled>
             📥 Importar (temporalmente deshabilitado)
         </button>
     </form>
 
-    <div class="mt-6 p-4 bg-blue-50 rounded">
-        <p class="font-semibold text-blue-800">Formato esperado del Excel:</p>
-        <ul class="list-disc ml-6 text-sm text-blue-700 mt-2">
+    <div class="mt-6 p-4 bg-accent-subtle dark:bg-accent/10 rounded border border-accent/20">
+        <p class="font-semibold text-accent">Formato esperado del Excel:</p>
+        <ul class="list-disc ml-6 text-sm text-accent mt-2">
             <li>Fila 1: encabezados (se saltan)</li>
             <li>Columnas con fecha, descripción, importe, método de pago</li>
             <li>Fechas en formato DD/MM/AAAA o YYYY-MM-DD</li>

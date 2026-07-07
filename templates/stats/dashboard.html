@@ -1,118 +1,108 @@
 {% extends "base.html" %}
-{% block title %}📊 Dashboard — MisGastos{% endblock %}
+{% block title %}Dashboard — MisGastos{% endblock %}
 {% block content %}
 
-<div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-3">
- <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+<div class="flex justify-between items-center mb-6">
+ <h1 class="text-xl font-semibold">Dashboard</h1>
  <div class="flex gap-2">
-  <a href="/scan" class="btn btn-primary">📷 Subir ticket</a>
-  <a href="/expenses" class="btn btn-secondary">📋 Historial</a>
+ <a href="/scan" class="px-3 py-1.5 text-sm font-medium bg-accent text-white rounded hover:bg-accent-emphasis">📷 Subir ticket</a>
+ <a href="/expense/new" class="px-3 py-1.5 text-sm font-medium border border-gray-300 dark:border-gray-600 rounded hover:bg-canvas-subtle dark:hover:bg-darkcanvas-subtle">➕ Manual</a>
  </div>
 </div>
 
 <!-- Stat cards -->
-<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
- <div class="stat-card">
-  <p class="stat-label">Gasto este mes</p>
-  <p class="stat-value text-brand-600">{{ "%.2f"|format(total_mes) }}€</p>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-darkcanvas-subtle">
+ <p class="text-xs font-medium text-fg-muted uppercase tracking-wide">Gasto este mes</p>
+ <p class="mt-1 text-2xl font-semibold text-accent">{{ "%.2f"|format(total_mes) }}€</p>
  </div>
- <div class="stat-card">
-  <p class="stat-label">Mes anterior</p>
-  <p class="stat-value text-gray-600">{{ "%.2f"|format(total_anterior) }}€</p>
-  {% if total_mes > 0 and total_anterior > 0 %}
-  <p class="text-sm mt-1 {% if total_mes > total_anterior %}text-red-600{% else %}text-green-600{% endif %}">
-   {% if total_mes > total_anterior %}↑{% else %}↓{% endif %}
-   {{ "%.0f"|format((total_mes - total_anterior) / total_anterior * 100) }}% vs mes anterior
-  </p>
-  {% endif %}
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-darkcanvas-subtle">
+ <p class="text-xs font-medium text-fg-muted uppercase tracking-wide">Mes anterior</p>
+ <p class="mt-1 text-2xl font-semibold">{{ "%.2f"|format(total_anterior) }}€</p>
+ {% if total_mes > 0 and total_anterior > 0 %}
+ <p class="text-xs mt-1 {% if total_mes > total_anterior %}text-danger{% else %}text-success{% endif %}">
+ {% if total_mes > total_anterior %}▲{% else %}▼{% endif %}
+ {{ "%.0f"|format(abs((total_mes - total_anterior) / total_anterior * 100)) }}% vs mes anterior
+ </p>
+ {% endif %}
  </div>
- <div class="stat-card">
-  <p class="stat-label">Tickets pendientes</p>
-  <p class="stat-value {% if review_queue_count > 0 %}text-red-600{% else %}text-gray-600{% endif %}">
-   {{ review_queue_count }}
-  </p>
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-darkcanvas-subtle">
+ <p class="text-xs font-medium text-fg-muted uppercase tracking-wide">Tickets este mes</p>
+ <p class="mt-1 text-2xl font-semibold">{{ num_tickets if num_tickets else 0 }}</p>
  </div>
- <div class="stat-card">
-  <p class="stat-label">Gasto medio diario</p>
-  <p class="stat-value text-gray-600">
-   {{ "%.2f"|format(total_mes / 30 if total_mes else 0) }}€
-  </p>
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-4 bg-white dark:bg-darkcanvas-subtle">
+ <p class="text-xs font-medium text-fg-muted uppercase tracking-wide">Ticket medio</p>
+ <p class="mt-1 text-2xl font-semibold">{{ "%.2f"|format(total_mes / num_tickets if num_tickets else 0) }}€</p>
  </div>
 </div>
 
-<!-- Grid de 2 columnas -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
  <!-- Por categoría -->
- <div class="card">
-  <h2 class="text-lg font-bold mb-4">Gasto por categoría</h2>
-  {% if por_categoria %}
-  <div class="space-y-3">
-   {% for cat in por_categoria %}
-   <div>
-    <div class="flex justify-between mb-1">
-     <span class="flex items-center gap-2">
-      <span class="w-3 h-3 rounded-full" style="background: {{ cat['color'] }}"></span>
-      <span class="font-medium text-sm">{{ cat['name'] }}</span>
-     </span>
-     <span class="font-bold text-sm">{{ "%.2f"|format(cat['total']) }}€</span>
-    </div>
-    <div class="w-full bg-gray-200 rounded-full h-2">
-     <div class="h-2 rounded-full" style="background: {{ cat['color'] }}; width: {{ (cat['total'] / total_mes * 100)|round(1) if total_mes > 0 else 0 }}%"></div>
-    </div>
-   </div>
-   {% endfor %}
-  </div>
-  {% else %}
-  <p class="text-gray-500 text-sm py-8 text-center">Sin datos este mes</p>
-  {% endif %}
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-5 bg-white dark:bg-darkcanvas-subtle">
+ <h2 class="text-base font-semibold mb-4">Gasto por categoría</h2>
+ {% if por_categoria %}
+ <div class="space-y-3">
+ {% for cat in por_categoria %}
+ <div>
+ <div class="flex justify-between mb-1">
+ <span class="flex items-center gap-2 text-sm">
+ <span class="w-3 h-3 rounded-full" style="background: {{ cat['color'] }}"></span>
+ {{ cat['name'] }}
+ </span>
+ <span class="font-semibold text-sm">{{ "%.2f"|format(cat['total']) }}€</span>
+ </div>
+ <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5">
+ <div class="h-1.5 rounded-full" style="background: {{ cat['color'] }}; width: {{ (cat['total'] / total_mes * 100)|round(1) }}%"></div>
+ </div>
+ </div>
+ {% endfor %}
+ </div>
+ {% else %}
+ <p class="text-fg-muted text-sm py-8 text-center">Sin datos este mes</p>
+ {% endif %}
  </div>
 
  <!-- Últimos gastos -->
- <div class="card">
-  <div class="flex justify-between items-center mb-4">
-   <h2 class="text-lg font-bold">Últimos gastos</h2>
-   <a href="/expenses" class="text-sm text-brand-600 hover:underline">Ver todo →</a>
-  </div>
-  {% if ultimos %}
-  <div class="space-y-2">
-   {% for exp in ultimos %}
-   <a href="/expense/{{ exp['id'] }}" class="flex justify-between items-center py-2 border-b border-gray-100 hover:bg-gray-50 px-2 rounded">
-    <div class="min-w-0">
-     <span class="font-medium text-sm">{{ exp['merchant_name'] or exp['description'] or '(sin descripción)' }}</span>
-     <span class="text-xs text-gray-500 ml-2">{{ exp['date'] | format_date_es }}</span>
-    </div>
-    <span class="font-bold text-sm shrink-0 ml-2">{{ "%.2f"|format(exp['total']) }}€</span>
-   </a>
-   {% endfor %}
-  </div>
-  {% else %}
-  <p class="text-gray-500 text-sm py-8 text-center">Aún no hay gastos</p>
-  {% endif %}
+ <div class="border border-gray-200 dark:border-gray-700 rounded p-5 bg-white dark:bg-darkcanvas-subtle">
+ <h2 class="text-base font-semibold mb-4">Últimos gastos</h2>
+ {% if ultimos %}
+ <div class="divide-y divide-gray-100 dark:divide-gray-800">
+ {% for exp in ultimos %}
+ <a href="/expense/{{ exp['id'] }}" class="flex justify-between items-center py-2.5 hover:bg-canvas-subtle dark:hover:bg-darkcanvas -mx-2 px-2 rounded">
+ <div>
+ <span class="font-medium text-sm">{{ exp['merchant_name'] or exp['description'] or '(sin descripción)' }}</span>
+ <span class="text-xs text-fg-muted ml-2">{{ exp['date'] | format_date_es }}</span>
+ </div>
+ <span class="font-semibold text-sm">{{ "%.2f"|format(exp['total']) }}€</span>
+ </a>
+ {% endfor %}
+ </div>
+ {% else %}
+ <p class="text-fg-muted text-sm py-8 text-center">Aún no hay gastos</p>
+ {% endif %}
  </div>
 </div>
 
-<!-- Presupuestos (si hay) -->
 {% if budgets %}
-<div class="card mb-6">
- <h2 class="text-lg font-bold mb-4">Presupuestos del mes</h2>
- <div class="space-y-3">
-  {% for b in budgets %}
-  <div>
-   <div class="flex justify-between mb-1">
-    <span class="flex items-center gap-2">
-     <span class="w-3 h-3 rounded-full" style="background: {{ b.color }}"></span>
-     <span class="font-medium text-sm">{{ b.name }}</span>
-    </span>
-    <span class="text-sm {% if b.over %}text-red-600 font-bold{% else %}text-gray-600{% endif %}">
-     {{ "%.2f"|format(b.spent) }}€ / {{ "%.2f"|format(b.limit) }}€ ({{ "%.0f"|format(b.pct) }}%)
-    </span>
-   </div>
-   <div class="w-full bg-gray-200 rounded-full h-3">
-    <div class="h-3 rounded-full {% if b.over %}bg-red-500{% elif b.pct > 80 %}bg-yellow-500{% else %}bg-green-500{% endif %}"
-     style="width: {{ [b.pct, 100]|min }}%"></div>
-   </div>
-  </div>
-  {% endfor %}
+<div class="border border-gray-200 dark:border-gray-700 rounded p-5 bg-white dark:bg-darkcanvas-subtle mb-6">
+ <h2 class="text-base font-semibold mb-4">Presupuestos del mes</h2>
+ <div class="space-y-4">
+ {% for b in budgets %}
+ <div>
+ <div class="flex justify-between items-center mb-1.5">
+ <span class="flex items-center gap-2 text-sm">
+ <span class="w-3 h-3 rounded-full" style="background: {{ b.color }}"></span>
+ {{ b.name }}
+ </span>
+ <span class="text-sm {% if b.over %}text-danger font-semibold{% else %}text-fg-muted{% endif %}">
+ {{ "%.2f"|format(b.spent) }}€ / {{ "%.2f"|format(b.limit) }}€
+ </span>
+ </div>
+ <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+ <div class="h-2 rounded-full {% if b.over %}bg-danger{% elif b.pct > 80 %}bg-warning{% else %}bg-success{% endif %}" style="width: {{ [b.pct, 100]|min }}%"></div>
+ </div>
+ </div>
+ {% endfor %}
  </div>
 </div>
 {% endif %}

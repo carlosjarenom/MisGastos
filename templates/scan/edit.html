@@ -1,19 +1,19 @@
 {% extends base_template %}
-{% block title %}✏️ Revisar ticket — MisGastos{% endblock %}
+{% block title %}Revisar ticket — MisGastos{% endblock %}
 {% block content %}
-<h1 class="text-2xl mb-6">Revisar ticket</h1>
+<h1 class="text-xl font-semibold mb-6">Revisar ticket</h1>
 
 {% if overall_confidence < 0.7 %}
-<div class="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6">
-    <p class="font-bold text-amber-800">⚠️ Revisa cuidadosamente este ticket</p>
-    <p class="text-amber-700">El sistema no está seguro de algunos campos (resaltados en rojo abajo).</p>
+<div class="bg-amber-50 dark:bg-yellow-900/20 border-l-4 border-amber-400 p-4 mb-6">
+    <p class="font-bold text-amber-800 dark:text-amber-400">⚠️ Revisa cuidadosamente este ticket</p>
+    <p class="text-amber-700 dark:text-amber-300">El sistema no está seguro de algunos campos (resaltados en rojo abajo).</p>
 </div>
 {% endif %}
 
 {% if error %}
-<div class="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
-    <p class="font-bold text-red-800">❌ Error al procesar el ticket</p>
-    <p class="text-red-700">{{ error }}</p>
+<div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 p-4 mb-6">
+    <p class="font-bold text-red-800 dark:text-red-400">❌ Error al procesar el ticket</p>
+    <p class="text-red-700 dark:text-red-300">{{ error }}</p>
 </div>
 {% endif %}
 
@@ -48,67 +48,67 @@
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div>
         {% if image_filename %}
-        <img src="/scan/image/{{ image_filename }}" class="w-full rounded shadow" style="max-height: 500px; object-fit: contain;">
+        <img src="/scan/image/{{ image_filename }}" class="w-full rounded shadow bg-gray-100 dark:bg-darkcanvas-inset" style="max-height: 500px; object-fit: contain;">
         {% else %}
-        <div class="w-full rounded shadow bg-gray-100 flex items-center justify-center" style="max-height: 500px;">
-            <p class="text-gray-500">Imagen no disponible</p>
+        <div class="w-full rounded shadow bg-gray-100 dark:bg-darkcanvas-inset flex items-center justify-center" style="max-height: 500px;">
+            <p class="text-fg-muted">Imagen no disponible</p>
         </div>
         {% endif %}
-        <p class="text-sm text-gray-500 mt-2">
+        <p class="text-sm text-fg-muted mt-2">
             Confianza general: {{ "%.0f"|format(overall_confidence * 100) }}%
         </p>
     </div>
 
     <div class="space-y-4">
         <!-- Fecha -->
-        <div class="border-l-4 p-3 {% if field_confidence.get('fecha', 0) < 0.7 %}bg-red-50 border-red-400{% else %}bg-green-50 border-green-400{% endif %}">
+        <div class="border-l-4 p-3 {% if field_confidence.get('fecha', 0) < 0.7 %}bg-red-50 dark:bg-red-900/20 border-red-400{% else %}bg-green-50 dark:bg-green-900/20 border-green-400{% endif %}">
             <label class="block text-sm font-semibold">
                 Fecha
-                <span class="text-xs text-gray-500">
+                <span class="text-xs text-fg-muted">
                     ({{ "%.0f"|format(field_confidence.get('fecha', 0) * 100) }}%)
                 </span>
             </label>
             <input type="date" value="{{ fecha }}"
-                   class="w-full border rounded p-2" id="input-date">
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1" id="input-date">
         </div>
 
         <!-- Comercio -->
-        <div class="border-l-4 p-3 {% if field_confidence.get('comercio', 0) < 0.7 %}bg-red-50 border-red-400{% else %}bg-green-50 border-green-400{% endif %}">
+        <div class="border-l-4 p-3 {% if field_confidence.get('comercio', 0) < 0.7 %}bg-red-50 dark:bg-red-900/20 border-red-400{% else %}bg-green-50 dark:bg-green-900/20 border-green-400{% endif %}">
             <label class="block text-sm font-semibold">
                 Comercio
-                <span class="text-xs text-gray-500">
+                <span class="text-xs text-fg-muted">
                     ({{ "%.0f"|format(field_confidence.get('comercio', 0) * 100) }}%)
                 </span>
             </label>
             <input type="text" value="{{ comercio or '' }}"
-                   class="w-full border rounded p-2" id="input-merchant">
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1" id="input-merchant">
         </div>
 
         <!-- NIF -->
         {% if nif %}
         <div>
-            <label class="block text-sm font-semibold text-gray-500">NIF detectado</label>
+            <label class="block text-sm font-semibold text-fg-muted">NIF detectado</label>
             <input type="text" value="{{ nif }}"
-                   class="w-full border rounded p-2 bg-gray-50" id="input-nif">
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 bg-gray-50 dark:bg-darkcanvas-subtle" id="input-nif">
         </div>
         {% endif %}
 
         <!-- Total -->
-        <div class="border-l-4 p-3 {% if field_confidence.get('total', 0) < 0.7 %}bg-red-50 border-red-400{% else %}bg-green-50 border-green-400{% endif %}">
+        <div class="border-l-4 p-3 {% if field_confidence.get('total', 0) < 0.7 %}bg-red-50 dark:bg-red-900/20 border-red-400{% else %}bg-green-50 dark:bg-green-900/20 border-green-400{% endif %}">
             <label class="block text-sm font-semibold">
                 Total (€)
-                <span class="text-xs text-gray-500">
+                <span class="text-xs text-fg-muted">
                     ({{ "%.0f"|format(field_confidence.get('total', 0) * 100) }}%)
                 </span>
             </label>
             <input type="number" step="0.01" value="{{ total or '' }}"
-                   class="w-full border rounded p-2 text-xl font-bold" id="input-total">
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 text-lg font-bold" id="input-total">
         </div>
 
         <!-- Método de pago -->
         <div>
             <label class="block text-sm font-semibold">Método de pago</label>
-            <select class="w-full border rounded p-2" id="input-payment">
+            <select class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1" id="input-payment">
                 <option value="">—</option>
                 <option value="Efectivo" {% if metodo_pago == 'Efectivo' %}selected{% endif %}>Efectivo</option>
                 <option value="Tarjeta" {% if metodo_pago == 'Tarjeta' %}selected{% endif %}>Tarjeta</option>
@@ -120,7 +120,6 @@
         <!-- Categoría -->
         <div>
             <label class="block text-sm font-semibold mb-2">Categoría</label>
-            <!-- O5: sin name="category", usa save-category más abajo -->
             <input type="hidden" id="input-category" value="{{ auto_category or 9 }}">
             <div class="grid grid-cols-5 gap-2" id="category-grid">
                 {% for cat in all_categories %}
@@ -128,37 +127,37 @@
                         data-cat-id="{{ cat.id }}"
                         onclick="selectCategory({{ cat.id }}, this)"
                         class="cat-btn text-xs py-2 px-1 rounded font-bold text-white transition-all
-                               {% if auto_category == cat.id %}ring-2 ring-black ring-offset-1 scale-105{% endif %}"
+                               {% if auto_category == cat.id %}ring-2 ring-accent ring-offset-1 scale-105{% endif %}"
                         style="background: {{ cat.color }};{% if cat.parent_id %} opacity:0.85;{% endif %}">
                     {{ cat.name }}
                 </button>
                 {% endfor %}
             </div>
-            <p class="text-xs text-gray-500 mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
+            <p class="text-xs text-fg-muted mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
         </div>
 
         <!-- Items editables -->
         {% if items %}
         <div>
             <label class="block text-sm font-semibold">Items detectados ({{ items|length }})</label>
-            <div class="max-h-60 overflow-y-auto border rounded p-2 text-sm space-y-2">
+            <div class="max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded p-2 text-sm space-y-2 bg-white dark:bg-darkcanvas-subtle">
                 {% for item in items %}
                 <div class="grid grid-cols-12 gap-1 items-center">
                     <input type="text" name="item_desc[]" value="{{ item.descripcion }}"
-                           class="col-span-7 border rounded p-1 text-sm item-desc-input"
+                           class="col-span-7 border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-1 py-1 text-sm item-desc-input"
                            id="input-item-desc-{{ loop.index0 }}">
                     <input type="number" name="item_qty[]" value="{{ item.cantidad or 1 }}" min="1"
-                           class="col-span-2 border rounded p-1 text-sm text-center item-qty-input"
+                           class="col-span-2 border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-1 py-1 text-sm text-center item-qty-input"
                            id="input-item-qty-{{ loop.index0 }}">
                     <input type="number" name="item_price[]" value="{{ item.precio }}" step="0.01"
-                           class="col-span-3 border rounded p-1 text-sm text-right item-price-input"
+                           class="col-span-3 border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-1 py-1 text-sm text-right item-price-input"
                            id="input-item-price-{{ loop.index0 }}">
                 </div>
                 {% endfor %}
             </div>
-            <p class="text-xs text-gray-500 mt-1">
+            <p class="text-xs text-fg-muted mt-1">
                 Total items: <span id="items-sum">—</span>€
-                <span id="items-mismatch" class="text-red-600 ml-2 hidden">⚠️ No cuadra con el total</span>
+                <span id="items-mismatch" class="text-danger ml-2 hidden">⚠️ No cuadra con el total</span>
             </p>
         </div>
         {% endif %}
@@ -179,10 +178,10 @@
 
     <div class="mt-6 space-y-2">
         <button type="submit"
-                class="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded font-bold">
+                class="w-full bg-success text-white py-2.5 rounded font-medium hover:opacity-90">
             ✅ Guardar
         </button>
-        <a href="/scan" class="block text-center text-gray-600 py-1.5 hover:underline text-sm">
+        <a href="/scan" class="block text-center text-fg-muted py-1.5 hover:underline text-sm">
             ← Volver a subir tickets
         </a>
     </div>
@@ -204,15 +203,12 @@
 
     // Category button grid
     function selectCategory(catId, btn) {
-        // Update hidden input
         document.getElementById('input-category').value = catId;
         document.getElementById('save-category').value = catId;
-        // Update visual selection
         document.querySelectorAll('.cat-btn').forEach(b => {
-            b.classList.remove('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
+            b.classList.remove('ring-2', 'ring-accent', 'ring-offset-1', 'scale-105');
         });
-        btn.classList.add('ring-2', 'ring-black', 'ring-offset-1', 'scale-105');
-        // Update label
+        btn.classList.add('ring-2', 'ring-accent', 'ring-offset-1', 'scale-105');
         const name = btn.textContent.trim();
         document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
     }
@@ -248,6 +244,6 @@
     document.querySelectorAll('.item-price-input, .item-qty-input').forEach(el => {
         el.addEventListener('input', recalcItemsSum);
     });
-    recalcItemsSum(); // initial
+    recalcItemsSum();
 </script>
 {% endblock %}
