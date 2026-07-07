@@ -15,7 +15,39 @@
     <p class="font-bold text-red-800">❌ Error al procesar el ticket</p>
     <p class="text-red-700">{{ error }}</p>
 </div>
-{% else %}
+{% endif %}
+
+{% if scan_id and image_filename %}
+<div class="bg-blue-50 border-l-4 border-blue-400 p-3 mb-4 text-sm">
+    <p class="font-semibold text-blue-800 mb-1">🔧 Herramientas de imagen</p>
+    <p class="text-blue-700 mb-2">Si el ticket está rotado o no se lee bien, intenta estas opciones:</p>
+    <div class="flex gap-2 flex-wrap">
+        <form method="POST" action="/scan/{{ scan_id }}/rotate/90" class="inline">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
+                ↻ Rotar 90°
+            </button>
+        </form>
+        <form method="POST" action="/scan/{{ scan_id }}/rotate/180" class="inline">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
+                ⤽ Rotar 180°
+            </button>
+        </form>
+        <form method="POST" action="/scan/{{ scan_id }}/rotate/270" class="inline">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded text-xs font-bold">
+                ↺ Rotar 270°
+            </button>
+        </form>
+        <form method="POST" action="/scan/{{ scan_id }}/enhance" class="inline">
+            <button type="submit" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded text-xs font-bold"
+                    onclick="return confirm('Se mejorará el contraste y se re-procesará el ticket. ¿Continuar?')">
+                ✨ Mejorar contraste
+            </button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+{% if not error %}
 <form method="POST" action="/scan/save" onsubmit="return validateForm()" id="save-form">
 
 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">

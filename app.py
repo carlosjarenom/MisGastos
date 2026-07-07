@@ -789,6 +789,255 @@ def scan_image(filename):
 
 
 # ============================================================
+# ROTACION / ENHANCE DE IMAGEN
+# ============================================================
+
+@app.route("/scan/<int:scan_id>/rotate/<int:degrees>", methods=["POST"])
+def rotate_scan(scan_id, degrees):
+    """Rotar la imagen de un scan y re-procesar OCR."""
+    if degrees not in (90, 180, 270):
+        return "Grados inválidos", 400
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT image_path FROM scans WHERE id = ?", (scan_id,))
+    scan = c.fetchone()
+    if not scan:
+        conn.close()
+        return "Scan no encontrado", 404
+
+    image_filename = scan['image_path']
+    if not image_filename:
+        conn.close()
+        return "Scan sin imagen", 400
+
+    image_path = os.path.join(UPLOAD_DIR, image_filename)
+    if not os.path.exists(image_path):
+        conn.close()
+        return "Imagen no encontrada en disco", 404
+
+    try:
+        from services.image_processor import rotate_image
+        rotated_path = rotate_image(image_path, degrees)
+        rotated_filename = os.path.basename(rotated_path)
+        c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
+                  (rotated_filename, scan_id))
+        conn.commit()
+    except ValueError as e:
+        conn.close()
+        return str(e), 400
+    conn.close()
+
+    try:
+        result = extract_ticket(rotated_path)
+    except Exception as e:
+        return f"Error al re-procesar: {e}", 500
+
+    auto_cat_id = None
+    if result.comercio:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?",
+                  (f"%{result.comercio}%",))
+        row = c.fetchone()
+        conn.close()
+        if row and row['default_category_id']:
+            auto_cat_id = row['default_category_id']
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+    if auto_cat_id is None:
+        auto_cat_id = 9
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE scans SET raw_output = ?, confidence = ?, duration_ms = ? WHERE id = ?",
+              (result.raw_output, result.overall_confidence, result.duration_ms, scan_id))
+    status = "pending" if result.overall_confidence < 0.7 else "reviewed"
+    c.execute("UPDATE scans SET status = ? WHERE id = ?", (status, scan_id))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("edit_pending_scan", scan_id=scan_id))
+
+
+@app.route("/scan/<int:scan_id>/enhance", methods=["POST"])
+def enhance_scan(scan_id):
+    """Mejorar contraste de la imagen y re-procesar OCR."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT image_path FROM scans WHERE id = ?", (scan_id,))
+    scan = c.fetchone()
+    if not scan:
+        conn.close()
+        return "Scan no encontrado", 404
+
+    image_filename = scan['image_path']
+    if not image_filename:
+        conn.close()
+        return "Scan sin imagen", 400
+
+    image_path = os.path.join(UPLOAD_DIR, image_filename)
+    if not os.path.exists(image_path):
+        conn.close()
+        return "Imagen no encontrada en disco", 404
+
+    try:
+        from services.image_processor import enhance_image
+        enhanced_path = enhance_image(image_path)
+        enhanced_filename = os.path.basename(enhanced_path)
+        c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
+                  (enhanced_filename, scan_id))
+        conn.commit()
+    except ValueError as e:
+        conn.close()
+        return str(e), 400
+    conn.close()
+
+    try:
+        result = extract_ticket(enhanced_path)
+    except Exception as e:
+        return f"Error al re-procesar: {e}", 500
+
+    auto_cat_id = None
+    if result.comercio:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?",
+                  (f"%{result.comercio}%",))
+        row = c.fetchone()
+        conn.close()
+        if row and row['default_category_id']:
+            auto_cat_id = row['default_category_id']
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+    if auto_cat_id is None:
+        auto_cat_id = 9
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("UPDATE scans SET raw_output = ?, confidence = ?, duration_ms = ? WHERE id = ?",
+              (result.raw_output, result.overall_confidence, result.duration_ms, scan_id))
+    status = "pending" if result.overall_confidence < 0.7 else "reviewed"
+    c.execute("UPDATE scans SET status = ? WHERE id = ?", (status, scan_id))
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("edit_pending_scan", scan_id=scan_id))
+
+
+# ============================================================
+# ENTRADA MANUAL DE TICKETS
+# ============================================================
+
+@app.route("/expense/new", methods=["GET", "POST"])
+def new_expense_manual():
+    """Añadir un gasto manualmente (sin OCR)."""
+    conn = get_db()
+    c = conn.cursor()
+
+    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
+    all_categories = []
+    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+        all_categories.append({'id': cat[0], 'name': cat[1],
+                              'parent_id': cat[2], 'color': cat[3]})
+
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+
+    if request.method == "POST":
+        try:
+            total = float(request.form.get("total", 0))
+        except (ValueError, TypeError):
+            conn.close()
+            return "Total inválido", 400
+        try:
+            category_id = int(request.form.get("category", 0))
+        except (ValueError, TypeError):
+            conn.close()
+            return "Categoría inválida", 400
+
+        date_val = request.form.get("date", "")
+        merchant = request.form.get("merchant", "").strip()
+        nif = request.form.get("nif", "").strip() or None
+        payment_method = request.form.get("payment_method", "")
+        description = request.form.get("description", "").strip()
+        kind = request.form.get("kind", "expense")
+
+        if not date_val or total <= 0 or total > 10000:
+            conn.close()
+            return "Datos inválidos", 400
+
+        c.execute("SELECT id FROM categories WHERE id = ?", (category_id,))
+        if not c.fetchone():
+            conn.close()
+            return "Categoría no existe", 400
+
+        merchant_id = None
+        if merchant:
+            if nif:
+                c.execute("SELECT id FROM merchants WHERE nif = ?", (nif,))
+                nif_row = c.fetchone()
+                if nif_row:
+                    merchant_id = nif_row['id']
+
+            if merchant_id is None:
+                c.execute("SELECT id, nif FROM merchants WHERE name = ?", (merchant,))
+                row = c.fetchone()
+                if row:
+                    merchant_id = row['id']
+                    if nif and (row['nif'] is None or row['nif'] == ""):
+                        c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (nif, merchant_id))
+                else:
+                    try:
+                        c.execute(
+                            "INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
+                            (merchant, nif, category_id)
+                        )
+                        merchant_id = c.lastrowid
+                    except sqlite3.IntegrityError:
+                        c.execute("SELECT id FROM merchants WHERE nif = ?", (nif,))
+                        nif_row = c.fetchone()
+                        merchant_id = nif_row['id'] if nif_row else None
+
+        c.execute("""
+            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')
+        """, (kind, date_val, description or None, merchant_id, total,
+              payment_method if payment_method else None, category_id))
+        txn_id = c.lastrowid
+
+        item_descs = request.form.getlist("item_desc[]")
+        item_prices = request.form.getlist("item_price[]")
+        item_quants = request.form.getlist("item_qty[]")
+        for i in range(len(item_descs)):
+            desc = item_descs[i].strip()
+            try:
+                price = float(item_prices[i])
+            except (ValueError, IndexError):
+                price = 0
+            try:
+                qty = int(item_quants[i])
+            except (ValueError, IndexError):
+                qty = 1
+            if desc and price > 0:
+                c.execute("""
+                    INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (txn_id, desc, qty, price, category_id))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("expense_detail", txn_id=txn_id))
+
+    conn.close()
+    return render_template(
+        "expenses/new.html",
+        all_categories=all_categories,
+        review_queue_count=review_count,
+    )
+
+
+# ============================================================
 # IMPORT / EXPORT EXCEL
 # ============================================================
 

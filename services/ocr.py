@@ -108,21 +108,40 @@ def extract_ticket(image_path: str) -> OCRResult:
 
 
 def _clean_json_response(raw: str) -> str:
-    """Quitar markdown fences (```json ... ```) que Qwen envuelve alrededor del JSON.
-    Sin esto, json.loads() falla y devuelve json_parse_error → 0% confidence."""
+    """Extraer JSON válido de la respuesta del VLM.
+
+    Qwen y otros VLMs envuelven su output de muchas formas:
+    - ```json ... ``` (markdown fences)
+    - ``` ... ``` (fences sin 'json')
+    - "Aquí tienes: {...}" (texto antes/después)
+    - <think>reasoning</think>{...} (tags de reasoning)
+    - {...} texto extra después
+
+    Esta función extrae solo el JSON válido.
+    """
+    import re
+
+    if not raw:
+        return ""
+
     text = raw.strip()
-    # Quitar ```json ... ```
-    if text.startswith("```"):
-        # Encontrar el primer ``` de cierre
-        end = text.find("```", 3)
-        if end != -1:
-            text = text[3:end].strip()
-        else:
-            text = text[3:].strip()
-        # Quitar la línea "json" inicial si existe
-        if text.startswith("json"):
-            text = text[4:].strip()
-    return text
+
+    # 1. Quitar <think>...</think> blocks (modelos de reasoning)
+    text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
+
+    # 2. Si hay ```json ... ``` o ``` ... ```, extraer el contenido del primer fence
+    fence_pattern = r'```(?:json)?\s*\n?(.*?)\n?\s*```'
+    fence_match = re.search(fence_pattern, text, re.DOTALL)
+    if fence_match:
+        text = fence_match.group(1).strip()
+
+    # 3. Buscar el primer { y el último } — extraer lo que hay entre ellos
+    first_brace = text.find('{')
+    last_brace = text.rfind('}')
+    if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+        text = text[first_brace:last_brace + 1]
+
+    return text.strip()
 
 
 def _call_vlm(image_path: str) -> OCRResult:
@@ -160,12 +179,14 @@ def _call_vlm(image_path: str) -> OCRResult:
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError:
+        # Incluir info de debug para saber qué devolvió el VLM
+        raw_preview = raw[:300] if raw else "(empty response)"
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5:9b",
             raw_output=raw, duration_ms=duration_ms,
-            error="json_parse_error"
+            error=f"json_parse_error | VLM response (first 300 chars): {raw_preview}"
         )
 
     return OCRResult(
