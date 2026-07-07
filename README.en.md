@@ -53,26 +53,26 @@ MisGastos turns photos of receipts into structured family accounting:
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ Server PC (Arch Linux + RTX 3090)                         │
-│                                                           │
-│  ┌────────────────┐  HTTP  ┌──────────────────────┐       │
-│  │ llama.cpp      │◄────────│ MisGastos (Flask)    │       │
-│  │ (port 8005)    │        │ (port 5000)          │       │
-│  │                │        │                      │       │
-│  │ Model:         │        │ - Python backend      │       │
-│  │ Qwen3.5-9B     │        │ - SQLite (gastos.db)  │       │
-│  │ (~6GB VRAM)    │        │ - Jinja2 + HTMX       │       │
-│  └────────────────┘        │ - Images on disk      │       │
-│                            └──────────┬───────────┘       │
-│                                       │                   │
-└───────────────────────────────────────┼───────────────────┘
-                                        │
-                              Home WiFi (LAN)
-                                        │
-                            ┌───────────┴──────────────┐
-                            │ Sonia's tablet (living)  │
-                            │ http://100.110.97.30:5000│
-                            └──────────────────────────┘
+│  Server PC (Arch Linux + RTX 3090)                         │
+│                                                            │
+│  ┌────────────────┐    HTTP    ┌──────────────────────┐   │
+│  │  llama.cpp     │◄──────────►│  MisGastos (Flask)   │   │
+│  │  (port 8005)   │            │  (port 5000)         │   │
+│  │                │            │                      │   │
+│  │  Model:        │            │  - Python backend    │   │
+│  │  Qwen3.5-9B    │            │  - SQLite (gastos.db)│   │
+│  │  (~6GB VRAM)   │            │  - Jinja2 + HTMX     │   │
+│  └────────────────┘            │  - Images on disk    │   │
+│                                 └──────────┬───────────┘   │
+│                                            │               │
+└────────────────────────────────────────────┼───────────────┘
+                                             │
+                                  Home WiFi (LAN)
+                                             │
+                              ┌──────────────┴──────────────┐
+                              │  Sonia's tablet (living room)│
+                              │  http://100.110.97.30:5000  │
+                              └─────────────────────────────┘
 ```
 
 ### Components
@@ -86,13 +86,13 @@ MisGastos turns photos of receipts into structured family accounting:
 
 ```
 Receipt photo → Preprocessing (resize to 1024px)
- → llama.cpp (Qwen3.5-9B) reads the receipt
- → Returns JSON with data + per-field confidence
- → Sanity checks (sum of items ≈ total, plausible date)
- → If confidence < 0.7 → Review queue
- → If confidence ≥ 0.7 → Edit screen
- → Sonia reviews and confirms
- → Saved to SQLite + items + auto-categorization
+              → llama.cpp (Qwen3.5-9B) reads the receipt
+              → Returns JSON with data + per-field confidence
+              → Sanity checks (sum of items ≈ total, plausible date)
+              → If confidence < 0.7 → Review queue
+              → If confidence ≥ 0.7 → Edit screen
+              → Sonia reviews and confirms
+              → Saved to SQLite + items + auto-categorization
 ```
 
 ---
@@ -184,9 +184,9 @@ Edit `systemd/llama-cpp-server-misgastos.service` and verify the paths match you
 
 ```ini
 ExecStart=/home/USER/.local/bin/llama-server \
- -m /home/USER/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
- --mmproj /home/USER/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
- ...
+  -m /home/USER/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj /home/USER/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  ...
 ```
 
 Replace `USER` with your actual username. Then:
@@ -262,8 +262,8 @@ http://YOUR-SERVER-IP:5000
 2. Takes a photo of the receipt (or drags an existing image)
 3. The system reads the receipt with AI (~3-5 seconds)
 4. A form appears with extracted fields:
- - Safe fields → green background
- - Doubtful fields → red background (review)
+   - Safe fields → green background
+   - Doubtful fields → red background (review)
 5. Sonia corrects what's needed (including individual editable items)
 6. Clicks "✅ Guardar" (Save)
 7. If the system isn't sure (confidence < 70%) → goes to review queue
@@ -299,12 +299,12 @@ All options live in `config.py`:
 # Llama.cpp (OCR VLM)
 LLAMA_ENDPOINT = "http://localhost:8005/v1"
 LLAMA_MODEL = "qwen3.5-9b"
-LLAMA_TEMPERATURE = 0.1  # determinism
+LLAMA_TEMPERATURE = 0.1         # determinism
 LLAMA_MAX_TOKENS = 1024
-DOUBLE_CHECK_THRESHOLD = 50.0  # € — tickets >€50 are read twice
+DOUBLE_CHECK_THRESHOLD = 50.0   # € — tickets >€50 are read twice
 
 # Flask
-FLASK_HOST = "0.0.0.0"  # listen on all interfaces
+FLASK_HOST = "0.0.0.0"          # listen on all interfaces
 FLASK_PORT = 5000
 
 # Paths
@@ -314,20 +314,20 @@ DB_PATH = os.path.join(DATA_DIR, "gastos.db")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 
 # Image
-MAX_IMAGE_DIM = 1024  # resize to max 1024px on long side
+MAX_IMAGE_DIM = 1024            # resize to max 1024px on long side
 
 # Categories (9 + Mixed)
 CATEGORIES = [
- (1, "Comida", None, "#10b981"),
- (2, "Farmacia y Salud", None, "#3b82f6"),
- (3, "Limpieza y Hogar", None, "#f59e0b"),
- (4, "Transporte", None, "#8b5cf6"),
- (5, "Cuidado personal", None, "#ec4899"),
- (6, "Educación", None, "#06b6d4"),
- (7, "Ocio", None, "#ef4444"),
- (8, "Servicios", None, "#6b7280"),  # utilities, internet, phone, insurance
- (9, "Otros", None, "#9ca3af"),
- (10, "Mixto", None, "#fbbf24"),
+    (1, "Comida", None, "#10b981"),
+    (2, "Farmacia y Salud", None, "#3b82f6"),
+    (3, "Limpieza y Hogar", None, "#f59e0b"),
+    (4, "Transporte", None, "#8b5cf6"),
+    (5, "Cuidado personal", None, "#ec4899"),
+    (6, "Educación", None, "#06b6d4"),
+    (7, "Ocio", None, "#ef4444"),
+    (8, "Servicios", None, "#6b7280"),  # utilities, internet, phone, insurance
+    (9, "Otros", None, "#9ca3af"),
+    (10, "Mixto", None, "#fbbf24"),
 ]
 ```
 
@@ -360,48 +360,48 @@ LLAMA_MODEL = "qwen3.5-3b"
 
 ```
 MisGastos/
-├── app.py                              # Flask app + endpoints
-├── config.py                           # Central configuration
-├── requirements.txt                    # Python dependencies
+├── app.py                      # Flask app + endpoints
+├── config.py                   # Central configuration
+├── requirements.txt            # Python dependencies
 │
-├── services/                           # Business logic
-│   ├── ocr.py                          # VLM backend (Qwen3.5-9B)
-│   ├── image_processor.py              # Preprocessing (resize, EXIF)
-│   ├── classifier.py                   # Cascade classification
-│   ├── llama_client.py                 # HTTP client for llama.cpp
-│   └── excel.py                        # Excel import/export
+├── services/                   # Business logic
+│   ├── ocr.py                  # VLM backend (Qwen3.5-9B)
+│   ├── image_processor.py      # Preprocessing (resize, EXIF)
+│   ├── classifier.py           # Cascade classification
+│   ├── llama_client.py         # HTTP client for llama.cpp
+│   └── excel.py                # Excel import/export
 │
 ├── models/
-│   └── schema.py                       # SQLite schema + migrations
+│   └── schema.py               # SQLite schema + migrations
 │
-├── templates/                          # Jinja2 + HTMX
+├── templates/                  # Jinja2 + HTMX
 │   ├── base.html
 │   ├── scan/
-│   │   ├── upload.html                 # Drag & drop + camera
-│   │   ├── edit.html                   # Editable form with items
-│   │   └── review_queue.html           # Review queue
+│   │   ├── upload.html         # Drag & drop + camera
+│   │   ├── edit.html           # Editable form with items
+│   │   └── review_queue.html   # Review queue
 │   ├── expenses/
-│   │   ├── list.html                   # History with filters
-│   │   ├── detail.html                 # Detail with items
-│   │   └── edit.html                   # Edit saved expense
+│   │   ├── list.html           # History with filters
+│   │   ├── detail.html         # Detail with items
+│   │   └── edit.html           # Edit saved expense
 │   ├── stats/
-│   │   └── dashboard.html              # Summary + budgets
-│   ├── import_excel.html               # Excel import
-│   └── partial.html                    # Layout for HTMX fragments
+│   │   └── dashboard.html      # Summary + budgets
+│   ├── import_excel.html       # Excel import
+│   └── partial.html            # Layout for HTMX fragments
 │
-├── scripts/                            # Start/stop
+├── scripts/                    # Start/stop
 │   ├── start-misgastos.sh
 │   └── stop-misgastos.sh
 │
 ├── systemd/
 │   └── llama-cpp-server-misgastos.service  # systemd service
 │
-├── information of project/             # Technical documentation
+├── information of project/     # Technical documentation
 │   └── PLAN-TECNICO-GUA-GLM.md
 │
-└── data/                               # Generated at runtime (don't commit)
-    ├── gastos.db                       # SQLite
-    └── uploads/                        # Temp images
+└── data/                       # Generated at runtime (don't commit)
+    ├── gastos.db               # SQLite
+    └── uploads/                # Temp images
 ```
 
 ---
@@ -413,14 +413,14 @@ MisGastos/
 ### Architecture
 
 ```
-MisGastos (Flask, Python) ──── HTTP POST /v1/chat/completions ────► llama-server (C++)
- │                                                                     │
- │ services/llama_client.py                                          GGUF model loaded
- │ uses Python `openai` library                                      in GPU VRAM
- │ with base_url=http://localhost:8005/v1
- │                                                                     │
- │ Receives: JSON text with ticket data                              Returns:
- │ + per-field confidence                                             generated tokens
+MisGastos (Flask, Python)  ──── HTTP POST /v1/chat/completions ────►  llama-server (C++)
+   │                                                                       │
+   │  services/llama_client.py                                          GGUF model loaded
+   │  uses Python `openai` library                                      in GPU VRAM
+   │  with base_url=http://localhost:8005/v1
+   │                                                                       │
+   │  Receives: JSON text with ticket data                              Returns:
+   │  + per-field confidence                                            generated tokens
 ```
 
 ### Why separate?
@@ -436,16 +436,16 @@ The systemd service (`~/.config/systemd/user/llama-cpp-server-misgastos.service`
 
 ```bash
 llama-server \
- -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
- --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
- --port 8005 \
- --host 0.0.0.0 \
- --ctx-size 16384 \
- --gpu-layers 99 \
- --threads 16 \
- --batch-size 512 \
- --ubatch-size 512 \
- --flash-attn
+  -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  --port 8005 \
+  --host 0.0.0.0 \
+  --ctx-size 16384 \
+  --gpu-layers 99 \
+  --threads 16 \
+  --batch-size 512 \
+  --ubatch-size 512 \
+  --flash-attn
 ```
 
 **Key parameters:**
@@ -510,12 +510,12 @@ The uploaded image is invalid. Make sure you upload real JPG/PNG/WEBP files, not
 1. Verify you're on the same WiFi
 2. Check server IP: `ip addr show`
 3. Verify firewall allows port 5000:
- ```bash
- sudo firewall-cmd --add-port=5000/tcp --permanent
- sudo firewall-cmd --reload
- # Or with ufw:
- sudo ufw allow 5000/tcp
- ```
+   ```bash
+   sudo firewall-cmd --add-port=5000/tcp --permanent
+   sudo firewall-cmd --reload
+   # Or with ufw:
+   sudo ufw allow 5000/tcp
+   ```
 4. Test from the server itself: `curl http://localhost:5000/health`
 
 ### 500 error when deleting an expense

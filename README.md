@@ -53,26 +53,26 @@ MisGastos convierte fotos de tickets en contabilidad familiar estructurada:
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│ PC servidor (Arch Linux + RTX 3090)                       │
-│                                                           │
-│  ┌────────────────┐  HTTP  ┌──────────────────────┐       │
-│  │ llama.cpp      │◄────────│ MisGastos (Flask)    │       │
-│  │ (puerto 8005)  │        │ (puerto 5000)        │       │
-│  │                │        │                      │       │
-│  │ Modelo:        │        │ - Backend Python      │       │
-│  │ Qwen3.5-9B     │        │ - SQLite (gastos.db)  │       │
-│  │ (~6GB VRAM)    │        │ - Jinja2 + HTMX       │       │
-│  └────────────────┘        │ - Imágenes en disco   │       │
-│                            └──────────┬───────────┘       │
-│                                       │                   │
-└───────────────────────────────────────┼───────────────────┘
-                                        │
-                              WiFi doméstica (LAN)
-                                        │
-                            ┌───────────┴──────────────┐
-                            │ Tablet de Sonia (salón)  │
-                            │ http://100.110.97.30:5000│
-                            └──────────────────────────┘
+│  PC servidor (Arch Linux + RTX 3090)                       │
+│                                                            │
+│  ┌────────────────┐    HTTP    ┌──────────────────────┐   │
+│  │  llama.cpp     │◄──────────►│  MisGastos (Flask)   │   │
+│  │  (puerto 8005) │            │  (puerto 5000)       │   │
+│  │                │            │                      │   │
+│  │  Modelo:       │            │  - Backend Python    │   │
+│  │  Qwen3.5-9B    │            │  - SQLite (gastos.db)│   │
+│  │  (~6GB VRAM)   │            │  - Jinja2 + HTMX     │   │
+│  └────────────────┘            │  - Imágenes en disco │   │
+│                                 └──────────┬───────────┘   │
+│                                            │               │
+└────────────────────────────────────────────┼───────────────┘
+                                             │
+                                  WiFi doméstica (LAN)
+                                             │
+                              ┌──────────────┴──────────────┐
+                              │  Tablet de Sonia (salón)    │
+                              │  http://100.110.97.30:5000  │
+                              └─────────────────────────────┘
 ```
 
 ### Componentes
@@ -86,13 +86,13 @@ MisGastos convierte fotos de tickets en contabilidad familiar estructurada:
 
 ```
 Foto del ticket → Preprocesamiento (redimensionar a 1024px)
- → llama.cpp (Qwen3.5-9B) lee el ticket
- → Devuelve JSON con datos + confidence por campo
- → Sanity checks (suma items ≈ total, fecha plausible)
- → Si confidence < 0.7 → Cola de revisión
- → Si confidence ≥ 0.7 → Pantalla de edición
- → Sonia revisa y confirma
- → Guardado en SQLite + items + categorización automática
+                → llama.cpp (Qwen3.5-9B) lee el ticket
+                → Devuelve JSON con datos + confidence por campo
+                → Sanity checks (suma items ≈ total, fecha plausible)
+                → Si confidence < 0.7 → Cola de revisión
+                → Si confidence ≥ 0.7 → Pantalla de edición
+                → Sonia revisa y confirma
+                → Guardado en SQLite + items + categorización automática
 ```
 
 ---
@@ -184,9 +184,9 @@ Editar `systemd/llama-cpp-server-misgastos.service` y verificar que las rutas co
 
 ```ini
 ExecStart=/home/USUARIO/.local/bin/llama-server \
- -m /home/USUARIO/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
- --mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
- ...
+  -m /home/USUARIO/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  ...
 ```
 
 Reemplazar `USUARIO` con tu nombre de usuario real. Luego:
@@ -262,8 +262,8 @@ http://IP-DEL-SERVIDOR:5000
 2. Hace foto al ticket (o arrastra una imagen existente)
 3. El sistema lee el ticket con IA (~3-5 segundos)
 4. Aparece un formulario con los campos extraídos:
- - Campos seguros → fondo verde
- - Campos dudosos → fondo rojo (revisar)
+   - Campos seguros → fondo verde
+   - Campos dudosos → fondo rojo (revisar)
 5. Sonia corrige lo que haga falta (incluyendo items individuales editables)
 6. Pulsa "✅ Guardar"
 7. Si el sistema no está seguro (confidence < 70%) → va a cola de revisión
@@ -299,12 +299,12 @@ Todas las opciones viven en `config.py`:
 # Llama.cpp (OCR VLM)
 LLAMA_ENDPOINT = "http://localhost:8005/v1"
 LLAMA_MODEL = "qwen3.5-9b"
-LLAMA_TEMPERATURE = 0.1  # determinismo
+LLAMA_TEMPERATURE = 0.1         # determinismo
 LLAMA_MAX_TOKENS = 1024
-DOUBLE_CHECK_THRESHOLD = 50.0  # € — tickets >50€ se leen dos veces
+DOUBLE_CHECK_THRESHOLD = 50.0   # € — tickets >50€ se leen dos veces
 
 # Flask
-FLASK_HOST = "0.0.0.0"  # escuchar en todas las interfaces
+FLASK_HOST = "0.0.0.0"          # escuchar en todas las interfaces
 FLASK_PORT = 5000
 
 # Rutas
@@ -314,20 +314,20 @@ DB_PATH = os.path.join(DATA_DIR, "gastos.db")
 UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 
 # Imagen
-MAX_IMAGE_DIM = 1024  # redimensionar a max 1024px lado largo
+MAX_IMAGE_DIM = 1024            # redimensionar a max 1024px lado largo
 
 # Categorías (9 + Mixto)
 CATEGORIES = [
- (1, "Comida", None, "#10b981"),
- (2, "Farmacia y Salud", None, "#3b82f6"),
- (3, "Limpieza y Hogar", None, "#f59e0b"),
- (4, "Transporte", None, "#8b5cf6"),
- (5, "Cuidado personal", None, "#ec4899"),
- (6, "Educación", None, "#06b6d4"),
- (7, "Ocio", None, "#ef4444"),
- (8, "Servicios", None, "#6b7280"),  # luz, agua, internet, teléfono, seguros
- (9, "Otros", None, "#9ca3af"),
- (10, "Mixto", None, "#fbbf24"),
+    (1, "Comida", None, "#10b981"),
+    (2, "Farmacia y Salud", None, "#3b82f6"),
+    (3, "Limpieza y Hogar", None, "#f59e0b"),
+    (4, "Transporte", None, "#8b5cf6"),
+    (5, "Cuidado personal", None, "#ec4899"),
+    (6, "Educación", None, "#06b6d4"),
+    (7, "Ocio", None, "#ef4444"),
+    (8, "Servicios", None, "#6b7280"),  # luz, agua, internet, teléfono, seguros
+    (9, "Otros", None, "#9ca3af"),
+    (10, "Mixto", None, "#fbbf24"),
 ]
 ```
 
@@ -360,48 +360,48 @@ LLAMA_MODEL = "qwen3.5-3b"
 
 ```
 MisGastos/
-├── app.py                          # Flask app + endpoints
-├── config.py                       # Configuración central
-├── requirements.txt                # Dependencias Python
+├── app.py                      # Flask app + endpoints
+├── config.py                   # Configuración central
+├── requirements.txt            # Dependencias Python
 │
-├── services/                       # Lógica de negocio
-│   ├── ocr.py                      # Backend VLM (Qwen3.5-9B)
-│   ├── image_processor.py          # Preprocesamiento (redimensionar, EXIF)
-│   ├── classifier.py               # Clasificación en cascada
-│   ├── llama_client.py             # Cliente HTTP para llama.cpp
-│   └── excel.py                    # Import/Export Excel
+├── services/                   # Lógica de negocio
+│   ├── ocr.py                  # Backend VLM (Qwen3.5-9B)
+│   ├── image_processor.py      # Preprocesamiento (redimensionar, EXIF)
+│   ├── classifier.py           # Clasificación en cascada
+│   ├── llama_client.py         # Cliente HTTP para llama.cpp
+│   └── excel.py                # Import/Export Excel
 │
 ├── models/
-│   └── schema.py                   # SQLite schema + migraciones
+│   └── schema.py               # SQLite schema + migraciones
 │
-├── templates/                      # Jinja2 + HTMX
+├── templates/                  # Jinja2 + HTMX
 │   ├── base.html
 │   ├── scan/
-│   │   ├── upload.html             # Drag & drop + cámara
-│   │   ├── edit.html               # Form editable con items
-│   │   └── review_queue.html       # Cola de revisión
+│   │   ├── upload.html         # Drag & drop + cámara
+│   │   ├── edit.html           # Form editable con items
+│   │   └── review_queue.html   # Cola de revisión
 │   ├── expenses/
-│   │   ├── list.html               # Historial con filtros
-│   │   ├── detail.html             # Detalle con items
-│   │   └── edit.html               # Editar gasto guardado
+│   │   ├── list.html           # Historial con filtros
+│   │   ├── detail.html         # Detalle con items
+│   │   └── edit.html           # Editar gasto guardado
 │   ├── stats/
-│   │   └── dashboard.html          # Resumen + presupuestos
-│   ├── import_excel.html           # Importación Excel
-│   └── partial.html                # Layout para HTMX fragments
+│   │   └── dashboard.html      # Resumen + presupuestos
+│   ├── import_excel.html       # Importación Excel
+│   └── partial.html            # Layout para HTMX fragments
 │
-├── scripts/                        # Arranque/parada
+├── scripts/                    # Arranque/parada
 │   ├── start-misgastos.sh
 │   └── stop-misgastos.sh
 │
 ├── systemd/
 │   └── llama-cpp-server-misgastos.service  # Servicio systemd
 │
-├── information of project/         # Documentación técnica
+├── information of project/     # Documentación técnica
 │   └── PLAN-TECNICO-GUA-GLM.md
 │
-└── data/                           # Generado en runtime (no commitear)
-    ├── gastos.db                   # SQLite
-    └── uploads/                    # Imágenes temporales
+└── data/                       # Generado en runtime (no commitear)
+    ├── gastos.db               # SQLite
+    └── uploads/                # Imágenes temporales
 ```
 
 ---
@@ -413,14 +413,14 @@ MisGastos/
 ### Arquitectura
 
 ```
-MisGastos (Flask, Python) ──── HTTP POST /v1/chat/completions ────► llama-server (C++)
- │                                                                     │
- │ services/llama_client.py                                          Modelo GGUF cargado
- │ usa librería `openai` de Python                                   en VRAM GPU
- │ con base_url=http://localhost:8005/v1
- │                                                                     │
- │ Recibe: texto JSON con datos del ticket                           Devuelve:
- │ + confidence por campo                                             tokens generados
+MisGastos (Flask, Python)  ──── HTTP POST /v1/chat/completions ────►  llama-server (C++)
+   │                                                                       │
+   │  services/llama_client.py                                          Modelo GGUF cargado
+   │  usa librería `openai` de Python                                  en VRAM GPU
+   │  con base_url=http://localhost:8005/v1
+   │                                                                       │
+   │  Recibe: texto JSON con datos del ticket                          Devuelve:
+   │  + confidence por campo                                           tokens generados
 ```
 
 ### ¿Por qué separado?
@@ -436,16 +436,16 @@ El servicio systemd (`~/.config/systemd/user/llama-cpp-server-misgastos.service`
 
 ```bash
 llama-server \
- -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
- --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
- --port 8005 \
- --host 0.0.0.0 \
- --ctx-size 16384 \
- --gpu-layers 99 \
- --threads 16 \
- --batch-size 512 \
- --ubatch-size 512 \
- --flash-attn
+  -m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-9B-f16.gguf \
+  --port 8005 \
+  --host 0.0.0.0 \
+  --ctx-size 16384 \
+  --gpu-layers 99 \
+  --threads 16 \
+  --batch-size 512 \
+  --ubatch-size 512 \
+  --flash-attn
 ```
 
 **Parámetros clave:**
@@ -510,12 +510,12 @@ La imagen subida no es válida. Asegúrate de subir JPG/PNG/WEBP reales, no PDFs
 1. Verificar que estás en la misma WiFi
 2. Verificar la IP del servidor: `ip addr show`
 3. Verificar que el firewall permite el puerto 5000:
- ```bash
- sudo firewall-cmd --add-port=5000/tcp --permanent
- sudo firewall-cmd --reload
- # O en ufw:
- sudo ufw allow 5000/tcp
- ```
+   ```bash
+   sudo firewall-cmd --add-port=5000/tcp --permanent
+   sudo firewall-cmd --reload
+   # O en ufw:
+   sudo ufw allow 5000/tcp
+   ```
 4. Probar desde el propio servidor: `curl http://localhost:5000/health`
 
 ### Error 500 al borrar un gasto
