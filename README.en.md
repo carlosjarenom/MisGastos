@@ -192,9 +192,9 @@ llama-server --version
 Edit `systemd/llama-cpp-server-misgastos.service` and verify the paths match your system:
 
 ```ini
-ExecStart=/home/USER/.local/bin/llama-server \
-  -m /home/USER/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj /home/USER/.cache/llama.cpp/models/mmproj-BF16.gguf \
+ExecStart=~/local/bin/llama-server \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
   ...
 ```
 
@@ -353,8 +353,8 @@ FLASK_DEBUG=1 python3 app.py
 If you have less VRAM, use Qwen3.5-3B by editing the `.service` file:
 
 ```ini
--m /home/USER/.cache/llama.cpp/models/Qwen_Qwen3.5-3B-Q4_K_M.gguf
---mmproj /home/USER/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-3B-f16.gguf
+-m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-3B-Q4_K_M.gguf
+--mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-3B-f16.gguf
 ```
 
 And in `config.py`:

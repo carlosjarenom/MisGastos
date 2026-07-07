@@ -192,9 +192,9 @@ llama-server --version
 Editar `systemd/llama-cpp-server-misgastos.service` y verificar que las rutas coinciden con tu sistema:
 
 ```ini
-ExecStart=/home/USUARIO/.local/bin/llama-server \
-  -m /home/USUARIO/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
-  --mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-BF16.gguf \
+ExecStart=~/local/bin/llama-server \
+  -m ~/.cache/llama.cpp/models/Qwen3.5-9B-Q4_K_M.gguf \
+  --mmproj ~/.cache/llama.cpp/models/mmproj-BF16.gguf \
   ...
 ```
 
@@ -353,8 +353,8 @@ FLASK_DEBUG=1 python3 app.py
 Si tienes menos VRAM, usa Qwen3.5-3B editando el archivo `.service`:
 
 ```ini
--m /home/USUARIO/.cache/llama.cpp/models/Qwen_Qwen3.5-3B-Q4_K_M.gguf
---mmproj /home/USUARIO/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-3B-f16.gguf
+-m ~/.cache/llama.cpp/models/Qwen_Qwen3.5-3B-Q4_K_M.gguf
+--mmproj ~/.cache/llama.cpp/models/mmproj-Qwen_Qwen3.5-3B-f16.gguf
 ```
 
 Y en `config.py`:
