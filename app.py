@@ -994,6 +994,54 @@ def settings():
 
 
 # ============================================================
+# GESTION DE COMERCIOS
+# ============================================================
+
+@app.route("/settings/merchants", methods=["GET", "POST"])
+def manage_merchants():
+    """Gestionar lista de comercios: ver, editar categoría por defecto, añadir nuevos."""
+    if request.method == "POST":
+        merchant_id = request.form.get("merchant_id")
+        name = request.form.get("name", "").strip()
+        category_id = request.form.get("category_id", 9)
+
+        conn = get_db()
+        c = conn.cursor()
+        if merchant_id:
+            c.execute("UPDATE merchants SET name=?, default_category_id=? WHERE id=?",
+                       (name, category_id, merchant_id))
+        else:
+            try:
+                c.execute("INSERT INTO merchants (name, default_category_id) VALUES (?, ?)",
+                           (name, category_id))
+            except sqlite3.IntegrityError:
+                pass
+        conn.commit()
+        conn.close()
+        return redirect(url_for("manage_merchants"))
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT m.id, m.name, m.default_category_id, c.name as cat_name
+        FROM merchants m
+        LEFT JOIN categories c ON m.default_category_id = c.id
+        ORDER BY m.name
+    """)
+    merchants = c.fetchall()
+    c.execute("SELECT id, name FROM categories WHERE parent_id IS NULL ORDER BY name")
+    categories = c.fetchall()
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+    conn.close()
+
+    return render_template("settings/merchants.html",
+                           merchants=merchants,
+                           categories=categories,
+                           review_queue_count=review_count)
+
+
+# ============================================================
 # ENTRADA MANUAL DE TICKETS
 # ============================================================
 

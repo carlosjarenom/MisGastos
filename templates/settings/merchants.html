@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Comercios — MisGastos{% endblock %}
+{% block content %}
+
+<div class="mb-4">
+ <a href="/settings" class="text-accent hover:underline text-sm">← Volver a ajustes</a>
+</div>
+
+<h1 class="text-xl font-semibold mb-6">🏪 Gestionar comercios</h1>
+
+<div class="border border-gray-200 dark:border-gray-700 rounded p-6 bg-white dark:bg-darkcanvas-subtle mb-6">
+ <h2 class="text-base font-semibold mb-3">Añadir nuevo comerciante</h2>
+ <form method="POST" class="flex gap-2 items-end">
+ <input type="hidden" name="merchant_id" value="">
+ <div class="flex-1">
+ <label class="block text-xs font-medium text-fg-muted mb-1">Nombre</label>
+ <input type="text" name="name" required class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5">
+ </div>
+ <div class="w-64">
+ <label class="block text-xs font-medium text-fg-muted mb-1">Categoría por defecto</label>
+ <select name="category_id" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5">
+ {% for cat in categories %}
+ <option value="{{ cat.id }}">{{ cat.name }}</option>
+ {% endfor %}
+ </select>
+ </div>
+ <button type="submit" class="bg-accent text-white px-4 py-1.5 rounded font-medium hover:bg-accent-emphasis">Añadir</button>
+ </form>
+</div>
+
+<div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden bg-white dark:bg-darkcanvas-subtle">
+ <table class="w-full text-sm">
+ <thead class="bg-canvas-subtle dark:bg-darkcanvas-inset">
+ <tr>
+ <th class="text-left px-4 py-2">Comerciante</th>
+ <th class="text-left px-4 py-2">Categoría actual</th>
+ <th class="text-left px-4 py-2">Cambiar a</th>
+ </tr>
+ </thead>
+ <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+ {% for m in merchants %}
+ <tr>
+ <td class="px-4 py-2 font-medium">{{ m.name }}</td>
+ <td class="px-4 py-2">{{ m.cat_name or '-' }}</td>
+ <td class="px-4 py-2">
+ <form method="POST" class="flex gap-1">
+ <input type="hidden" name="merchant_id" value="{{ m.id }}">
+ <input type="hidden" name="name" value="{{ m.name }}">
+ <select name="category_id" class="border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 text-xs">
+ {% for cat in categories %}
+ <option value="{{ cat.id }}" {% if m.default_category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+ {% endfor %}
+ </select>
+ <button type="submit" class="text-accent text-xs">Guardar</button>
+ </form>
+ </td>
+ </tr>
+ {% endfor %}
+ </tbody>
+ </table>
+</div>
+{% endblock %}
