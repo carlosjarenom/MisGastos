@@ -31,6 +31,23 @@
  </div>
  </div>
 
+ <!-- Análisis de categorías -->
+ <div class="border-b border-gray-100 dark:border-gray-800 pb-6">
+ <div class="flex items-start justify-between">
+ <div class="flex-1">
+ <label class="block text-sm font-semibold mb-1">Análisis de categorías</label>
+ <p class="text-xs text-fg-muted">
+ Si está activado, el sistema analiza los productos del ticket para determinar la categoría (ej: si compra comida, va a Comida). Si está desactivado, usa la lista de comercios por defecto (ej: Mercadona siempre es Comida).
+ </p>
+ </div>
+ <label class="relative inline-flex items-center cursor-pointer ml-4">
+ <input type="checkbox" name="category_analysis" class="sr-only peer"
+ {% if cat_analysis_enabled %}checked{% endif %}>
+ <div class="w-11 h-6 bg-gray-200 dark:bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent"></div>
+ </label>
+ </div>
+ </div>
+
  <!-- Tema -->
  <div class="border-b border-gray-100 dark:border-gray-800 pb-6">
  <label class="block text-sm font-semibold mb-2">Tema</label>

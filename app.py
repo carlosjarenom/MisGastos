@@ -48,6 +48,10 @@ def is_deep_analysis_enabled() -> bool:
     """¿Está activado el análisis profundo (items + products)?"""
     return get_setting('deep_analysis', 'false') == 'true'
 
+def is_category_analysis_enabled() -> bool:
+    """¿Está activado el análisis de categorías por items?"""
+    return get_setting('category_analysis', 'false') == 'true'
+
 
 # ============================================================
 # JINJA FILTERS
@@ -239,18 +243,17 @@ def scan_upload():
             review_queue_count=0,
         )
 
-    # Auto-clasificar — cascada en orden correcto (v6: override primero)
-    # Nivel 0: overrides por comercio (Mercadona=Comida, Repsol=Carburante, etc.)
-    # Nivel 1: merchant conocido en DB
-    # Nivel 2: heurística por items
-    # Nivel 3: fallback a Otros
+    # Auto-clasificar — cascada v7 (FIX 21C)
+    # Si category_analysis activado: items primero, luego override, luego DB, fallback
+    # Si no: override primero (comportamiento anterior)
     auto_cat_id = None
 
-    # Nivel 0: overrides por comercio
-    if result.comercio:
+    if is_category_analysis_enabled() and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+
+    if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
 
-    # Nivel 1: merchant conocido en DB
     if auto_cat_id is None and result.comercio:
         conn = get_db()
         c = conn.cursor()
@@ -260,11 +263,6 @@ def scan_upload():
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
 
-    # Nivel 2: heurística por items (solo si merchant no dio categoría)
-    if auto_cat_id is None and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
-
-    # Nivel 3: fallback
     if auto_cat_id is None:
         auto_cat_id = 9  # Otros
 
@@ -745,27 +743,23 @@ def edit_pending_scan(scan_id):
     except json.JSONDecodeError:
         data = {}
 
-    # Auto-clasificar — cascada completa (igual que scan_upload, v6)
+    # Auto-clasificar — cascada v7 (FIX 21C)
     auto_cat_id = None
     comercio = data.get("comercio")
     items = data.get("items", [])
 
-    # Nivel 0: overrides por comercio
-    if comercio:
+    if is_category_analysis_enabled() and items:
+        auto_cat_id, _ = clasificar_por_items(items)
+
+    if auto_cat_id is None and comercio:
         auto_cat_id = clasificar_por_comercio_override(comercio)
 
-    # Nivel 1: merchant conocido (O6: reusar cursor c)
     if auto_cat_id is None and comercio:
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
         mrow = c.fetchone()
         if mrow and mrow['default_category_id']:
             auto_cat_id = mrow['default_category_id']
 
-    # Nivel 2: heurística por items
-    if auto_cat_id is None and items:
-        auto_cat_id, _ = clasificar_por_items(items)
-
-    # Nivel 3: fallback
     if auto_cat_id is None:
         auto_cat_id = 9  # Otros
 
@@ -864,9 +858,11 @@ def rotate_scan(scan_id, degrees):
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
-    # Auto-clasificar v6: override primero
+    # Auto-clasificar v7 (FIX 21C)
     auto_cat_id = None
-    if result.comercio:
+    if is_category_analysis_enabled() and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+    if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
     if auto_cat_id is None and result.comercio:
         conn = get_db()
@@ -877,8 +873,6 @@ def rotate_scan(scan_id, degrees):
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
-    if auto_cat_id is None and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
         auto_cat_id = 9
 
@@ -932,9 +926,11 @@ def enhance_scan(scan_id):
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
-    # Auto-clasificar v6: override primero
+    # Auto-clasificar v7 (FIX 21C)
     auto_cat_id = None
-    if result.comercio:
+    if is_category_analysis_enabled() and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
+    if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
     if auto_cat_id is None and result.comercio:
         conn = get_db()
@@ -945,8 +941,6 @@ def enhance_scan(scan_id):
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
-    if auto_cat_id is None and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
         auto_cat_id = 9
 
@@ -978,18 +972,22 @@ def settings():
     if request.method == "POST":
         # Guardar ajustes
         deep = request.form.get("deep_analysis") == "on"
+        cat_analysis = request.form.get("category_analysis") == "on"
         theme = request.form.get("theme", "light")
         set_setting('deep_analysis', 'true' if deep else 'false')
+        set_setting('category_analysis', 'true' if cat_analysis else 'false')
         set_setting('theme', theme)
         return redirect(url_for("settings"))
 
     # GET: mostrar formulario
     deep_enabled = is_deep_analysis_enabled()
+    cat_analysis_enabled = is_category_analysis_enabled()
     current_theme = get_setting('theme', 'light')
 
     return render_template(
         "settings.html",
         deep_enabled=deep_enabled,
+        cat_analysis_enabled=cat_analysis_enabled,
         current_theme=current_theme,
         review_queue_count=review_count,
     )

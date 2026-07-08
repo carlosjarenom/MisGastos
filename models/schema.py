@@ -120,6 +120,7 @@ def init_db():
     # Valores por defecto de los ajustes
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('deep_analysis', 'false')")
     c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'light')")
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('category_analysis', 'false')")
 
     # Migración: añadir columna image_path a scans si no existe
     c.execute("PRAGMA table_info(scans)")
