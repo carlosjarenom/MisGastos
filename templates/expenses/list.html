@@ -1,40 +1,86 @@
 {% extends "base.html" %}
-{% block title %}Historial — MisGastos{% endblock %}
+{% block title %}Archivos — MisGastos{% endblock %}
 {% block content %}
 
-<div class="flex justify-between items-center mb-6">
- <h1 class="text-xl font-semibold">Historial de gastos</h1>
+<div class="mb-4">
+ {% if view == "month" %}
+ <a href="/expenses?year={{ year }}" class="text-accent hover:underline text-sm">← {{ year }}</a>
+ {% elif view == "months" %}
+ <a href="/expenses" class="text-accent hover:underline text-sm">← Todos los años</a>
+ {% endif %}
 </div>
 
-{% if grouped %}
-<div class="space-y-6">
- {% for year, months in grouped.items() %}
- <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden bg-white dark:bg-darkcanvas-subtle">
- <!-- Año -->
- <div class="bg-canvas-subtle dark:bg-darkcanvas-inset px-4 py-2 border-b border-gray-200 dark:border-gray-700">
- <h2 class="text-lg font-bold">{{ year }}</h2>
+<h1 class="text-xl font-semibold mb-6">
+ 📁 Archivos
+ {% if view == "months" %}— {{ year }}{% endif %}
+ {% if view == "month" %}— {{ month_name }} {{ year }}{% endif %}
+</h1>
+
+{% if view == "years" %}
+<!-- VISTA AÑOS -->
+<div class="space-y-3 max-w-2xl">
+ {% for y in years %}
+ <a href="/expenses?year={{ y.year }}"
+ class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-darkcanvas-subtle hover:bg-canvas-subtle dark:hover:bg-darkcanvas transition-colors">
+ <div class="flex items-center gap-3">
+ <span class="text-2xl">📂</span>
+ <div>
+ <p class="font-semibold text-lg">{{ y.year }}</p>
+ <p class="text-xs text-fg-muted">{{ y.count }} tickets · {{ "%.2f"|format(y.total) }}€</p>
  </div>
+ </div>
+ <span class="text-fg-muted">→</span>
+ </a>
+ {% else %}
+ <p class="text-center py-12 text-fg-muted">No hay gastos registrados</p>
+ {% endfor %}
+</div>
 
- <!-- Meses -->
- <div class="divide-y divide-gray-100 dark:divide-gray-800">
- {% for month, expenses in months.items() %}
- <div class="p-4">
- <h3 class="text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3">
- {{ meses_es.get(month, month) }}
- <span class="text-fg-muted font-normal">({{ expenses|length }} tickets)</span>
- </h3>
+{% elif view == "months" %}
+<!-- VISTA MESES -->
+<div class="space-y-3 max-w-2xl">
+ {% for m in months %}
+ <a href="/expenses?year={{ year }}&month={{ m.month }}"
+ class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-darkcanvas-subtle hover:bg-canvas-subtle dark:hover:bg-darkcanvas transition-colors">
+ <div class="flex items-center gap-3">
+ <span class="text-2xl">📂</span>
+ <div>
+ <p class="font-semibold">{{ meses_es.get(m.month, m.month) }}</p>
+ <p class="text-xs text-fg-muted">{{ m.count }} tickets · {{ "%.2f"|format(m.total) }}€</p>
+ </div>
+ </div>
+ <div class="flex items-center gap-3">
+ <a href="/export-excel?year={{ year }}&month={{ m.month }}"
+ class="text-accent hover:underline text-sm"
+ onclick="event.stopPropagation(); event.preventDefault(); window.location.href=this.href;">
+ 📤 Exportar Excel
+ </a>
+ <span class="text-fg-muted">→</span>
+ </div>
+ </a>
+ {% endfor %}
+</div>
 
- <!-- Tickets de este mes -->
- <div class="space-y-3">
- {% for exp in expenses %}
- <div class="flex gap-4 border border-gray-100 dark:border-gray-800 rounded p-3 hover:bg-canvas-subtle dark:hover:bg-darkcanvas">
- <!-- Imagen del ticket (si existe) -->
+{% elif view == "month" %}
+<!-- VISTA TICKETS DEL MES -->
+<div class="flex justify-between items-center mb-4">
+ <div>
+ <p class="text-sm text-fg-muted">{{ expenses_list|length }} tickets · Total: <span class="font-bold">{{ "%.2f"|format(total_mes) }}€</span></p>
+ </div>
+ <a href="/export-excel?year={{ year }}&month={{ month }}"
+ class="px-3 py-1.5 bg-accent text-white rounded text-sm font-medium hover:bg-accent-emphasis">
+ 📤 Exportar Excel de {{ month_name }}
+ </a>
+</div>
+
+<div class="space-y-3">
+ {% for exp in expenses_list %}
+ <div class="flex gap-4 border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-darkcanvas-subtle hover:bg-canvas-subtle dark:hover:bg-darkcanvas">
  {% if exp.scan_image %}
  <div class="flex-shrink-0">
  <img src="/scan/image/{{ exp.scan_image }}"
  class="w-16 h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer"
  onclick="window.open('/scan/image/{{ exp.scan_image }}', '_blank')"
- title="Ver imagen del ticket"
  alt="Ticket">
  </div>
  {% else %}
@@ -43,7 +89,6 @@
  </div>
  {% endif %}
 
- <!-- Info del ticket -->
  <div class="flex-1 min-w-0">
  <div class="flex justify-between items-start">
  <div>
@@ -52,12 +97,11 @@
  </a>
  <p class="text-xs text-fg-muted mt-0.5">
  {{ exp.date | format_date_es }}
- {% if exp.category_name %}
- · <span class="inline-flex items-center gap-1">
- <span class="w-2 h-2 rounded-full" style="background: {{ exp.category_color or '#6366f1' }}"></span>
+ {% if exp.category_name %}·
+ <span class="inline-flex items-center gap-1">
+ <span class="w-2 h-2 rounded-full" style="background: {{ exp.category_color or '#6b7280' }}"></span>
  {{ exp.category_name }}
- </span>
- {% endif %}
+ </span>{% endif %}
  {% if exp.payment_method %}· {{ exp.payment_method }}{% endif %}
  </p>
  </div>
@@ -73,18 +117,10 @@
  </div>
  </div>
  </div>
+ {% else %}
+ <p class="text-center py-12 text-fg-muted">No hay tickets en este mes</p>
  {% endfor %}
- </div>
- </div>
- {% endfor %}
- </div>
- </div>
- {% endfor %}
-</div>
-{% else %}
-<div class="text-center py-12 text-fg-muted">
- <p class="text-base">No hay gastos registrados</p>
- <a href="/scan" class="text-accent hover:underline mt-2 inline-block">📷 Sube tu primer ticket</a>
 </div>
 {% endif %}
+
 {% endblock %}

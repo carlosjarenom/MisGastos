@@ -488,64 +488,124 @@ def scan_save():
 
 @app.route("/expenses")
 def expenses():
-    """Historial de gastos agrupado por año → mes."""
+    """Explorador de archivos: año → mes → tickets."""
     conn = get_db()
     c = conn.cursor()
 
-    # Obtener todos los gastos con su scan (para mostrar imagen)
-    c.execute("""
-        SELECT t.*, c.name as category_name, c.color as category_color,
-            m.name as merchant_name, s.image_path as scan_image
-        FROM transactions t
-        LEFT JOIN categories c ON t.category_id = c.id
-        LEFT JOIN merchants m ON t.merchant_id = m.id
-        LEFT JOIN scans s ON s.transaction_id = t.id AND s.status = 'saved'
-        WHERE t.kind='expense'
-        ORDER BY t.date DESC, t.id DESC
-        LIMIT 500
-    """)
-    all_expenses = c.fetchall()
+    year = request.args.get("year")
+    month = request.args.get("month")
 
-    # Agrupar por año → mes
-    grouped = {}
-    for exp in all_expenses:
-        year = exp['date'][:4] if exp['date'] else 'Sin fecha'
-        month = exp['date'][5:7] if exp['date'] else '??'
-        if year not in grouped:
-            grouped[year] = {}
-        if month not in grouped[year]:
-            grouped[year][month] = []
-        grouped[year][month].append(exp)
+    meses_es = {'01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+                '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+                '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'}
 
-    # Ordenar por año descendente, meses descendente dentro de cada año
-    sorted_grouped = dict(sorted(grouped.items(), reverse=True))
-    for year in sorted_grouped:
-        sorted_grouped[year] = dict(sorted(sorted_grouped[year].items(), reverse=True))
+    if year and month:
+        # Vista de tickets de un mes concreto
+        month_start = f"{year}-{month}-01"
+        if month == "12":
+            next_month_start = f"{int(year)+1}-01-01"
+        else:
+            next_month_start = f"{year}-{int(month)+1:02d}-01"
 
-    # Categorías para filtro
-    c.execute("SELECT id, name, color FROM categories WHERE parent_id IS NULL ORDER BY name")
-    categories = c.fetchall()
+        c.execute("""
+            SELECT t.*, cat.name as category_name, cat.color as category_color,
+                m.name as merchant_name, s.image_path as scan_image
+            FROM transactions t
+            LEFT JOIN categories cat ON t.category_id = cat.id
+            LEFT JOIN merchants m ON t.merchant_id = m.id
+            LEFT JOIN scans s ON s.transaction_id = t.id AND s.status = 'saved'
+            WHERE t.kind='expense' AND t.date >= ? AND t.date < ?
+            ORDER BY t.date DESC, t.id DESC
+        """, (month_start, next_month_start))
+        expenses_list = c.fetchall()
 
-    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
-    review_count = c.fetchone()[0] or 0
+        total_mes = sum(e['total'] for e in expenses_list) if expenses_list else 0
 
-    conn.close()
+        c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+        review_count = c.fetchone()[0] or 0
+        conn.close()
 
-    # Nombres de meses en español
-    meses_es = {
-        '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
-        '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
-        '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre',
-        '??': 'Sin fecha'
-    }
+        return render_template("expenses/list.html",
+            view="month",
+            year=year,
+            month=month,
+            month_name=meses_es.get(month, month),
+            expenses_list=expenses_list,
+            total_mes=total_mes,
+            review_queue_count=review_count,
+        )
 
-    return render_template(
-        "expenses/list.html",
-        grouped=sorted_grouped,
-        categories=categories,
-        meses_es=meses_es,
-        review_queue_count=review_count,
-    )
+    elif year:
+        # Vista de meses de un año concreto
+        c.execute("""
+            SELECT DISTINCT substr(date, 1, 7) as year_month
+            FROM transactions
+            WHERE kind='expense' AND substr(date, 1, 4) = ?
+            ORDER BY year_month DESC
+        """, (year,))
+        months_data = c.fetchall()
+
+        months = []
+        for md in months_data:
+            m = md['year_month'][5:7]
+            c.execute("""
+                SELECT COUNT(*), SUM(total)
+                FROM transactions
+                WHERE kind='expense' AND substr(date, 1, 7) = ?
+            """, (md['year_month'],))
+            row = c.fetchone()
+            months.append({
+                'month': m,
+                'count': row[0],
+                'total': row[1] or 0
+            })
+
+        c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+        review_count = c.fetchone()[0] or 0
+        conn.close()
+
+        return render_template("expenses/list.html",
+            view="months",
+            year=year,
+            months=months,
+            meses_es=meses_es,
+            review_queue_count=review_count,
+        )
+
+    else:
+        # Vista raíz: lista de años
+        c.execute("""
+            SELECT DISTINCT substr(date, 1, 4) as year
+            FROM transactions
+            WHERE kind='expense'
+            ORDER BY year DESC
+        """)
+        years_data = c.fetchall()
+
+        years = []
+        for yd in years_data:
+            y = yd['year']
+            c.execute("""
+                SELECT COUNT(*), SUM(total)
+                FROM transactions
+                WHERE kind='expense' AND substr(date, 1, 4) = ?
+            """, (y,))
+            row = c.fetchone()
+            years.append({
+                'year': y,
+                'count': row[0],
+                'total': row[1] or 0
+            })
+
+        c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+        review_count = c.fetchone()[0] or 0
+        conn.close()
+
+        return render_template("expenses/list.html",
+            view="years",
+            years=years,
+            review_queue_count=review_count,
+        )
 
 
 
@@ -1229,12 +1289,21 @@ def export_excel_route():
     """Exportar a Excel."""
     month = request.args.get("month")
     year = request.args.get("year")
-    path = export_excel(month=month, year=year)
+    import os
+
+    if year and month:
+        from services.excel import export_month_excel
+        path = export_month_excel(year=year, month=month)
+        filename = f"gastos_{year}_{month}.xlsx"
+    else:
+        path = export_excel(month=month, year=year)
+        filename = os.path.basename(path)
 
     return send_file(
         path,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
+        download_name=filename,
     )
 
 
