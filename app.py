@@ -52,6 +52,16 @@ def is_category_analysis_enabled() -> bool:
     """¿Está activado el análisis de categorías por items?"""
     return get_setting('category_analysis', 'false') == 'true'
 
+def is_thinking_enabled() -> bool:
+    """¿Está activado el razonamiento del modelo?"""
+    return get_setting('enable_thinking', 'true') == 'true'
+
+
+# Mapeo de nombres de categoría a IDs (para sugerencia del VLM)
+CATEGORY_NAME_TO_ID = {
+    "Comida": 1, "Ropa": 2, "Farmacia": 3, "Carburante": 4, "Banco": 5, "Otros": 6,
+}
+
 
 # ============================================================
 # JINJA FILTERS
@@ -233,7 +243,7 @@ def scan_upload():
     # Procesar OCR (deep_analysis según ajuste)
     try:
         deep = is_deep_analysis_enabled()
-        result = extract_ticket(original_path, deep_analysis=deep)
+        result = extract_ticket(original_path, deep_analysis=deep, enable_thinking=is_thinking_enabled())
     except ValueError as e:
         # Imagen inválida
         os.remove(original_path)
@@ -243,13 +253,17 @@ def scan_upload():
             review_queue_count=0,
         )
 
-    # Auto-clasificar — cascada v7 (FIX 21C)
-    # Si category_analysis activado: items primero, luego override, luego DB, fallback
-    # Si no: override primero (comportamiento anterior)
+    # Auto-clasificar — cascada v8 (FIX 25B-2)
+    # Nivel 0: sugerencia del VLM (si category_analysis activado)
+    # Nivel 1: override por comercio
+    # Nivel 2: buscar en DB
+    # Nivel 3: heurística por items (solo en modo profundo)
+    # Nivel 4: fallback
     auto_cat_id = None
 
-    if is_category_analysis_enabled() and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
+    if is_category_analysis_enabled() and result.categoria_sugerida:
+        cat_name = result.categoria_sugerida.strip()
+        auto_cat_id = CATEGORY_NAME_TO_ID.get(cat_name)
 
     if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
@@ -262,6 +276,9 @@ def scan_upload():
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
+
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
 
     if auto_cat_id is None:
         auto_cat_id = 6  # Otros
@@ -745,13 +762,14 @@ def edit_pending_scan(scan_id):
     except json.JSONDecodeError:
         data = {}
 
-    # Auto-clasificar — cascada v7 (FIX 21C)
+    # Auto-clasificar — cascada v8 (FIX 25B-2)
     auto_cat_id = None
     comercio = data.get("comercio")
     items = data.get("items", [])
 
-    if is_category_analysis_enabled() and items:
-        auto_cat_id, _ = clasificar_por_items(items)
+    if is_category_analysis_enabled() and data.get("categoria_sugerida"):
+        cat_name = data["categoria_sugerida"].strip()
+        auto_cat_id = CATEGORY_NAME_TO_ID.get(cat_name)
 
     if auto_cat_id is None and comercio:
         auto_cat_id = clasificar_por_comercio_override(comercio)
@@ -761,6 +779,9 @@ def edit_pending_scan(scan_id):
         mrow = c.fetchone()
         if mrow and mrow['default_category_id']:
             auto_cat_id = mrow['default_category_id']
+
+    if auto_cat_id is None and items:
+        auto_cat_id, _ = clasificar_por_items(items)
 
     if auto_cat_id is None:
         auto_cat_id = 6  # Otros
@@ -856,14 +877,15 @@ def rotate_scan(scan_id, degrees):
     conn.close()
 
     try:
-        result = extract_ticket(rotated_path, deep_analysis=is_deep_analysis_enabled())
+        result = extract_ticket(rotated_path, deep_analysis=is_deep_analysis_enabled(), enable_thinking=is_thinking_enabled())
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
-    # Auto-clasificar v7 (FIX 21C)
+    # Auto-clasificar v8 (FIX 25B-2)
     auto_cat_id = None
-    if is_category_analysis_enabled() and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
+    if is_category_analysis_enabled() and result.categoria_sugerida:
+        cat_name = result.categoria_sugerida.strip()
+        auto_cat_id = CATEGORY_NAME_TO_ID.get(cat_name)
     if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
     if auto_cat_id is None and result.comercio:
@@ -875,8 +897,10 @@ def rotate_scan(scan_id, degrees):
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
-        auto_cat_id = 6
+        auto_cat_id = 6  # Otros
 
     conn = get_db()
     c = conn.cursor()
@@ -924,14 +948,15 @@ def enhance_scan(scan_id):
     conn.close()
 
     try:
-        result = extract_ticket(enhanced_path, deep_analysis=is_deep_analysis_enabled())
+        result = extract_ticket(enhanced_path, deep_analysis=is_deep_analysis_enabled(), enable_thinking=is_thinking_enabled())
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
-    # Auto-clasificar v7 (FIX 21C)
+    # Auto-clasificar v8 (FIX 25B-2)
     auto_cat_id = None
-    if is_category_analysis_enabled() and result.items:
-        auto_cat_id, _ = clasificar_por_items(result.items)
+    if is_category_analysis_enabled() and result.categoria_sugerida:
+        cat_name = result.categoria_sugerida.strip()
+        auto_cat_id = CATEGORY_NAME_TO_ID.get(cat_name)
     if auto_cat_id is None and result.comercio:
         auto_cat_id = clasificar_por_comercio_override(result.comercio)
     if auto_cat_id is None and result.comercio:
@@ -943,8 +968,10 @@ def enhance_scan(scan_id):
         conn.close()
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
+    if auto_cat_id is None and result.items:
+        auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
-        auto_cat_id = 6
+        auto_cat_id = 6  # Otros
 
     conn = get_db()
     c = conn.cursor()
@@ -975,21 +1002,25 @@ def settings():
         # Guardar ajustes
         deep = request.form.get("deep_analysis") == "on"
         cat_analysis = request.form.get("category_analysis") == "on"
+        thinking = request.form.get("enable_thinking") == "on"
         theme = request.form.get("theme", "light")
         set_setting('deep_analysis', 'true' if deep else 'false')
         set_setting('category_analysis', 'true' if cat_analysis else 'false')
+        set_setting('enable_thinking', 'true' if thinking else 'false')
         set_setting('theme', theme)
         return redirect(url_for("settings"))
 
     # GET: mostrar formulario
     deep_enabled = is_deep_analysis_enabled()
     cat_analysis_enabled = is_category_analysis_enabled()
+    thinking_enabled = is_thinking_enabled()
     current_theme = get_setting('theme', 'light')
 
     return render_template(
         "settings.html",
         deep_enabled=deep_enabled,
         cat_analysis_enabled=cat_analysis_enabled,
+        thinking_enabled=thinking_enabled,
         current_theme=current_theme,
         review_queue_count=review_count,
     )

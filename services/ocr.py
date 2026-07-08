@@ -52,7 +52,16 @@ Reglas críticas:
  Puedes pensar antes de responder, pero el output final debe ser JSON válido.
 12. DESCUENTOS: Si el ticket tiene descuentos u ofertas, inclúyelos como
  un item con descripcion="DESCUENTO" y precio negativo (ej: -8.98).
- Así la suma de items cuadrará con el total."""
+ Así la suma de items cuadrará con el total.
+13. CATEGORÍA: Sugiere una categoría basándote en el contenido del ticket.
+Opciones válidas: "Comida", "Ropa", "Farmacia", "Carburante", "Banco", "Otros".
+- "Comida": supermercados, restaurantes, comida
+- "Ropa": tiendas de ropa, El Corte Inglés (moda)
+- "Farmacia": farmacias, medicinas
+- "Carburante": gasolineras, combustible
+- "Banco": recibos bancarios, reintegros, transferencias
+- "Otros": todo lo demás
+Incluye "categoria_sugerida" en el JSON.""
 
 USER_PROMPT = """Extrae los datos de este ticket en JSON.
 
@@ -76,7 +85,8 @@ Esquema esperado:
  "subtotal": float | null,
  "iva": float | null,
  "total": float | null,
- "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null
+ "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null,
+ "categoria_sugerida": "Comida" | "Ropa" | "Farmacia" | "Carburante" | "Banco" | "Otros" | null
 }
 
 Devuelve SOLO el JSON. Nada más."""
@@ -99,6 +109,8 @@ Reglas críticas:
 6. NO extraigas items individuales. Solo fecha, comercio, card_last4, total y metodo_pago.
 7. Tras razonar internamente, tu respuesta FINAL debe ser SOLO el JSON.
 8. DESCUENTOS: el total es el importe final tras descuentos.
+9. CATEGORÍA: Sugiere una categoría. Opciones: "Comida", "Ropa", "Farmacia", "Carburante", "Banco", "Otros".
+Incluye "categoria_sugerida" en el JSON.
 
 Esquema:
 {
@@ -108,7 +120,8 @@ Esquema:
  "comercio": "string" | null,
  "card_last4": "string (últimos 4 dígitos de la tarjeta, ej: 6133) o null si es efectivo" | null,
  "total": float | null,
- "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null
+ "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null,
+ "categoria_sugerida": "Comida" | "Ropa" | "Farmacia" | "Carburante" | "Banco" | "Otros" | null
 }
 
 Devuelve SOLO el JSON. Nada más."""
@@ -122,6 +135,7 @@ class OCRResult:
     items: list[dict]
     total: float | None
     metodo_pago: str | None
+    categoria_sugerida: str | None = None
     overall_confidence: float
     field_confidence: dict
     model: str
@@ -130,19 +144,21 @@ class OCRResult:
     error: str | None = None
 
 
-def extract_ticket(image_path: str, deep_analysis: bool = True) -> OCRResult:
+def extract_ticket(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True) -> OCRResult:
     """Extraer datos de un ticket usando Qwen3.5-9B.
 
     Args:
         image_path: ruta a la imagen
         deep_analysis: si True, extrae items individuales (lento).
                        si False, solo fecha/comercio/total (rápido).
+        enable_thinking: si True, el modelo razona antes (más preciso, lento).
+                         si False, responde directo (más rápido, ~5-20s).
     """
     # Preprocesar
     processed = preprocess_image(image_path)
 
     # Primera llamada
-    result = _call_vlm(processed, deep_analysis=deep_analysis)
+    result = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
 
     # Sanity checks
     if not _passes_sanity_check(result):
@@ -150,7 +166,7 @@ def extract_ticket(image_path: str, deep_analysis: bool = True) -> OCRResult:
 
     # Doble check para tickets grandes (solo en modo profundo)
     if deep_analysis and result.total and result.total > DOUBLE_CHECK_THRESHOLD:
-        second = _call_vlm(processed, deep_analysis=deep_analysis)
+        second = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
         if result.total and second.total:
             discrepancy = abs(result.total - second.total) / max(result.total, 0.01)
             if discrepancy > 0.05:
@@ -202,7 +218,7 @@ def _clean_json_response(raw: str) -> str:
     return text.strip()
 
 
-def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
+def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True) -> OCRResult:
     """Llamar al VLM con formato data URI limpio (sin newlines en base64).
 
     llama.cpp tiene un bug con el formato data:image/jpeg;base64,
@@ -233,7 +249,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
     ]
 
     try:
-        raw = call_vlm(messages)
+        raw = call_vlm(messages, enable_thinking=enable_thinking)
     except ValueError as e:
         # Si el formato data URI falla, intentar con requests directo
         # (bypass de la librería openai)
@@ -304,6 +320,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
         items=data.get("items", []),
         total=data.get("total"),
         metodo_pago=data.get("metodo_pago"),
+        categoria_sugerida=data.get("categoria_sugerida"),
         overall_confidence=data.get("overall_confidence", 0.0),
         field_confidence=data.get("field_confidence", {}),
         model="qwen3.5-9b",

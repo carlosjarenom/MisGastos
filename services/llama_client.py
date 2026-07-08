@@ -10,7 +10,7 @@ log = logging.getLogger(__name__)
 client = OpenAI(base_url=LLAMA_ENDPOINT, api_key="dummy", timeout=120.0)
 
 
-def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
+def call_vlm(messages: list, model: str = LLAMA_MODEL, enable_thinking: bool = True) -> str:
     """Enviar prompt multimodal a llama.cpp y devolver texto raw.
 
     Maneja el modo thinking de Qwen3.5:
@@ -18,13 +18,13 @@ def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
     - Si content está vacío pero reasoning_content tiene texto, usar reasoning_content
     - Si ambos están vacíos, lanzar ValueError
 
-    Usa enable_thinking=True (necesario para imágenes en llama.cpp).
+    Usa enable_thinking param (True por defecto).
     Si falla, reintenta sin extra_body.
     """
     response = None
     last_error = None
 
-    # Intentar primero con enable_thinking=True (FIX 11)
+    # Intentar primero con enable_thinking (FIX 11 / 25B)
     try:
         response = client.chat.completions.create(
             model=model,
@@ -32,11 +32,11 @@ def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
             temperature=LLAMA_TEMPERATURE,
             top_p=0.9,
             max_tokens=LLAMA_MAX_TOKENS,
-            extra_body={"enable_thinking": True},
+            extra_body={"enable_thinking": enable_thinking},
         )
     except Exception as e:
         last_error = e
-        log.warning(f"Error con enable_thinking=True ({e}), reintentando sin extra_body...")
+        log.warning(f"Error con enable_thinking={enable_thinking} ({e}), reintentando sin extra_body...")
 
     # Fallback: sin enable_thinking
     if response is None:
