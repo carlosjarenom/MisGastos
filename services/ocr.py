@@ -91,20 +91,22 @@ Reglas críticas:
 1. Formato de fecha ISO: YYYY-MM-DD. Si el ticket muestra "06/07/26",
  interpreta como 2026-07-06 (siglo XXI).
 2. Números: usa punto como separador decimal (1234.56), nunca coma.
-3. NIF español: formato letra+8 dígitos (A12345678). Si no aparece, usa null.
+3. Tarjeta: extrae los últimos 4 dígitos del número de tarjeta que aparezca
+ en el ticket (ej: ****6133 → "6133"). Si el método es efectivo o no aparece,
+ usa null.
 4. metodo_pago debe ser uno de: "Efectivo", "Tarjeta", "Bizum", "Transferencia", o null.
 5. Si un campo no se puede leer, usa null.
-6. NO extraigas items individuales. Solo fecha, comercio, NIF, total y metodo_pago.
+6. NO extraigas items individuales. Solo fecha, comercio, card_last4, total y metodo_pago.
 7. Tras razonar internamente, tu respuesta FINAL debe ser SOLO el JSON.
 8. DESCUENTOS: el total es el importe final tras descuentos.
 
 Esquema:
 {
  "overall_confidence": float,
- "field_confidence": {"fecha": float, "comercio": float, "nif": float, "total": float, "metodo_pago": float},
+ "field_confidence": {"fecha": float, "comercio": float, "card_last4": float, "total": float, "metodo_pago": float},
  "fecha": "YYYY-MM-DD" | null,
  "comercio": "string" | null,
- "nif": "string" | null,
+ "card_last4": "string (últimos 4 dígitos de la tarjeta, ej: 6133) o null si es efectivo" | null,
  "total": float | null,
  "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null
 }
