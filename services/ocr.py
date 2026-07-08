@@ -61,7 +61,7 @@ Opciones válidas: "Comida", "Ropa", "Farmacia", "Carburante", "Banco", "Otros".
 - "Carburante": gasolineras, combustible
 - "Banco": recibos bancarios, reintegros, transferencias
 - "Otros": todo lo demás
-Incluye "categoria_sugerida" en el JSON.""
+Incluye "categoria_sugerida" en el JSON."""
 
 USER_PROMPT = """Extrae los datos de este ticket en JSON.
 
@@ -135,12 +135,12 @@ class OCRResult:
     items: list[dict]
     total: float | None
     metodo_pago: str | None
-    categoria_sugerida: str | None = None
     overall_confidence: float
     field_confidence: dict
     model: str
     raw_output: str
     duration_ms: int
+    categoria_sugerida: str | None = None
     error: str | None = None
 
 
