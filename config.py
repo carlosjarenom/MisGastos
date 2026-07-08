@@ -35,6 +35,7 @@ CATEGORIES = [
     (8, "Servicios", None, "#6b7280"),
     (9, "Otros", None, "#9ca3af"),
     (10, "Mixto", None, "#fbbf24"),
+    (11, "Carburante", None, "#8b5cf6"),
     (15, "Ropa", None, "#db2777"),
     (16, "Banco", None, "#0f766e"),
 ]
