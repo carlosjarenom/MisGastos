@@ -39,10 +39,5 @@ CATEGORIES = [
     (16, "Banco", None, "#0f766e"),
 ]
 
-# Subcategorías de Transporte
-TRANSPORT_SUBCATEGORIES = [
-    (11, "Carburante", 4, "#8b5cf6"),
-    (12, "Parking", 4, "#8b5cf6"),
-    (13, "Transporte público", 4, "#8b5cf6"),
-    (14, "Mantenimiento coche", 4, "#8b5cf6"),
-]
+# Sin subcategorías por ahora
+TRANSPORT_SUBCATEGORIES = []

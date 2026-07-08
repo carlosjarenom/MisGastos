@@ -56,12 +56,12 @@
  <div>
  <label class="block text-xs font-medium text-fg-muted mb-1">Categoría <span class="text-danger">*</span></label>
  <input type="hidden" name="category" id="save-category" value="9">
- <div class="grid grid-cols-5 gap-1.5" id="category-grid">
+ <div class="grid grid-cols-4 sm:grid-cols-5 gap-1.5" id="category-grid">
  {% for cat in all_categories %}
  <button type="button"
  data-cat-id="{{ cat.id }}"
  onclick="selectCategory({{ cat.id }}, this)"
- class="cat-btn text-xs py-1.5 px-1 rounded font-bold text-white
+ class="cat-btn text-xs py-1.5 px-1 rounded font-bold text-white truncate
  {% if request.form.get('category', '9')|string == cat.id|string %}ring-2 ring-accent ring-offset-1{% endif %}"
  style="background: {{ cat.color }};{% if cat.parent_id %} opacity:0.85;{% endif %}">
  {{ cat.name }}

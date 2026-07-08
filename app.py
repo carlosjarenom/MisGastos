@@ -288,8 +288,8 @@ def scan_upload():
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
-    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+    from config import CATEGORIES
+    for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
     return render_template(
@@ -765,8 +765,8 @@ def edit_pending_scan(scan_id):
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
-    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+    from config import CATEGORIES
+    for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
     c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
@@ -1051,9 +1051,9 @@ def new_expense_manual():
     conn = get_db()
     c = conn.cursor()
 
-    from config import CATEGORIES, TRANSPORT_SUBCATEGORIES
+    from config import CATEGORIES
     all_categories = []
-    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
+    for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1],
                               'parent_id': cat[2], 'color': cat[3]})
 

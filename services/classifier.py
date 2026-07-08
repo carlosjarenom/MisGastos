@@ -114,6 +114,8 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "total": 11,
     "shell": 11,
     "bp": 11,
+    "es gasexpress": 11,  # Carburante
+    "gasexpress": 11,  # Carburante
     "gas express": 11,  # Carburante
     "iberdrola": 8,
     "endesa": 8,

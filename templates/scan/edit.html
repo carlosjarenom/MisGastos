@@ -121,12 +121,12 @@
         <div>
             <label class="block text-sm font-semibold mb-2">Categoría</label>
             <input type="hidden" id="input-category" value="{{ auto_category or 9 }}">
-            <div class="grid grid-cols-5 gap-2" id="category-grid">
+            <div class="grid grid-cols-4 sm:grid-cols-5 gap-2" id="category-grid">
                 {% for cat in all_categories %}
                 <button type="button"
                         data-cat-id="{{ cat.id }}"
                         onclick="selectCategory({{ cat.id }}, this)"
-                        class="cat-btn text-xs py-2 px-1 rounded font-bold text-white transition-all
+                        class="cat-btn text-xs py-2 px-1 rounded font-bold text-white truncate transition-all
                                {% if auto_category == cat.id %}ring-2 ring-accent ring-offset-1 scale-105{% endif %}"
                         style="background: {{ cat.color }};{% if cat.parent_id %} opacity:0.85;{% endif %}">
                     {{ cat.name }}
