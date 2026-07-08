@@ -17,6 +17,7 @@ from services.excel import import_excel, export_excel
 from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
 
 app = Flask(__name__)
+app.jinja_env.globals.update(abs=abs)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max
 
@@ -49,15 +50,6 @@ def format_date_es(value):
         return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
     except (ValueError, TypeError):
         return value
-
-
-# ============================================================
-# INICIALIZACIÓN
-# ============================================================
-
-@app.before_request
-def ensure_db():
-    init_db()
 
 
 # ============================================================
@@ -401,7 +393,7 @@ def scan_save():
     ))
     txn_id = c.lastrowid
 
-    # Guardar items y calcular suma
+    # Guardar items y calcular suma (también en tabla products para historial de precios)
     items_sum = 0.0
     for i in range(len(item_descs)):
         desc = item_descs[i].strip()
@@ -420,25 +412,12 @@ def scan_save():
                 VALUES (?, ?, ?, ?, ?)
             """, (txn_id, desc, qty, price, data["category_id"]))
 
-    # Guardar items también en tabla products (historial de precios)
-    for i in range(len(item_descs)):
-        desc = item_descs[i].strip()
-        try:
-            price = float(item_prices[i])
-        except (ValueError, IndexError):
-            price = 0
-        try:
-            qty = float(item_quants[i])
-        except (ValueError, IndexError):
-            qty = 1.0
-        if desc and price > 0:
             # precio del OCR = precio UNITARIO (no total)
             # Para gasolina: precio = €/litro, cantidad = litros
-            unit_price = price
             c.execute("""
                 INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                 VALUES (?, ?, ?, ?, ?)
-            """, (desc, unit_price, data["date"], txn_id, merchant_id))
+            """, (desc, price, data["date"], txn_id, merchant_id))
 
     # Actualizar scan → vincular a transacción + marcar como guardado
     if data["scan_id"]:
@@ -690,15 +669,17 @@ def delete_expense(txn_id):
     conn.commit()
     conn.close()
 
-    # O8: Borrar imagen del disco
+    # O8: Borrar imagen del disco y versiones temporales
     if image_path:
         full_path = os.path.join(UPLOAD_DIR, image_path)
         if os.path.exists(full_path):
             os.remove(full_path)
         base, _ = os.path.splitext(full_path)
-        processed = base + "_processed.jpg"
-        if os.path.exists(processed):
-            os.remove(processed)
+        # Borrar todas las variantes posibles
+        for suffix in ('_processed', '_current', '_enhanced', '_rot90', '_rot180', '_rot270'):
+            variant = f"{base}{suffix}.jpg"
+            if os.path.exists(variant):
+                os.remove(variant)
 
     return redirect(url_for("expenses"))
 
@@ -1080,24 +1061,12 @@ def new_expense_manual():
                     VALUES (?, ?, ?, ?, ?)
                 """, (txn_id, desc, qty, price, category_id))
 
-        # Guardar items también en tabla products (historial de precios)
-        for i in range(len(item_descs)):
-            desc = item_descs[i].strip()
-            try:
-                price = float(item_prices[i])
-            except (ValueError, IndexError):
-                price = 0
-            try:
-                qty = float(item_quants[i])
-            except (ValueError, IndexError):
-                qty = 1.0
-            if desc and price > 0:
+                # Guardar items también en tabla products (historial de precios)
                 # precio del form = precio UNITARIO (no total)
-                unit_price = price
                 c.execute("""
                     INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                     VALUES (?, ?, ?, ?, ?)
-                """, (desc, unit_price, date_val, txn_id, merchant_id))
+                """, (desc, price, date_val, txn_id, merchant_id))
 
         conn.commit()
         conn.close()

@@ -5,6 +5,7 @@ import json
 import base64
 import time
 import logging
+import re
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
@@ -133,8 +134,6 @@ def _clean_json_response(raw: str) -> str:
 
     Esta función extrae solo el JSON válido.
     """
-    import re
-
     if not raw:
         return ""
 
@@ -307,7 +306,7 @@ def _passes_sanity_check(r: OCRResult) -> bool:
     if not r.total or r.total <= 0 or r.total > 10000:
         return False
     if r.items and r.total:
-        items_sum = sum(i.get("precio", 0) * float(i.get("cantidad", 1)) for i in r.items)
+        items_sum = sum((i.get("precio") or 0) * float(i.get("cantidad") or 1.0) for i in r.items)
         if items_sum > 0 and abs(items_sum - r.total) > 0.50: # 0.50€ tolerancia por redondeos
             return False
     if r.fecha:

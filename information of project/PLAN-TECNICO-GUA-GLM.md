@@ -280,17 +280,22 @@ Sonia puede siempre cambiar la categoría manualmente.
 ### Taxonomía canónica
 
 ```
-Comida           → Supermercados, restaurantes, fruta, verdura...
-Farmacia         → Medicinas, parafarmacia
-Limpieza        → Productos de limpieza del hogar
-Carburante       → Gasolina, diesel, electricidad (coche)
-Cuidado personal → Peluquería, cosmética, ropa
-Educación        → Academias, libros, material escolar
-Ocio             → Cine, restaurantes (no comida cotidiana), viajes
-Hogar            → Muebles, decoración, reparaciones
-Salud            → Médico, dentista, óptica (no medicinas)
-Otros            → Todo lo que no encaje
-Ingresos         → Pensiones, nóminas, otros ingresos
+1  Comida             → #10b981 (Supermercados, restaurantes, comida...)
+2  Farmacia y Salud   → #3b82f6 (Medicinas, parafarmacia, médico...)
+3  Limpieza y Hogar   → #f59e0b (Productos de limpieza, muebles, reparaciones...)
+4  Transporte         → #8b5cf6 (Gasolina, diesel, parking, bus, tren...)
+5  Cuidado personal   → #ec4899 (Peluquería, cosmética, ropa...)
+6  Educación          → #06b6d4 (Academias, libros, material escolar...)
+7  Ocio               → #ef4444 (Cine, restaurantes (ocio), viajes, juegos...)
+8  Servicios          → #6b7280 (Luz, agua, internet, teléfono, seguros...)
+9  Otros              → #9ca3af (Todo lo que no encaje)
+10 Mixto              → #fbbf24 (Tickets con múltiples categorías)
+
+Subcategorías de Transporte (4):
+11 Carburante         → #8b5cf6
+12 Parking            → #8b5cf6
+13 Transporte público → #8b5cf6
+14 Mantenimiento coche → #8b5cf6
 ```
 
 **Pregunta para GLM:** ¿La taxonomía está bien? ¿Falta alguna categoría? ¿"Ingresos" en la misma tabla de `transactions` con `kind='income'`?
@@ -321,7 +326,7 @@ CREATE TABLE transactions (
 );
 
 -- Items individuales de un ticket
-CREATE TABLE expense_items (
+CREATE TABLE transaction_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_id INTEGER REFERENCES transactions(id),
     description TEXT NOT NULL,
