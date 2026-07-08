@@ -59,19 +59,37 @@ def call_vlm(messages: list, model: str = LLAMA_MODEL) -> str:
 
     content = choice.message.content
 
-    # Si content está vacío, intentar con reasoning_content (FIX 10A)
-    if not content:
+    # Detectar si content es razonamiento (no empieza con { o ```)
+    # En ese caso, intentar con reasoning_content que puede tener el JSON (FIX 19B)
+    is_content_json = content and (content.strip().startswith('{') or
+                                    content.strip().startswith('```') or
+                                    content.strip().startswith('<think>'))
+
+    if not is_content_json:
         reasoning = getattr(choice.message, 'reasoning_content', None)
         if reasoning:
-            log.warning(f"content vacío, usando reasoning_content ({len(reasoning)} chars)")
-            content = reasoning
-        else:
+            # reasoning_content podría tener el JSON
+            is_reasoning_json = reasoning.strip().startswith('{') or \
+                                reasoning.strip().startswith('```') or \
+                                reasoning.strip().startswith('<think>')
+            if is_reasoning_json:
+                log.warning(f"content es razonamiento, usando reasoning_content que tiene JSON ({len(reasoning)} chars)")
+                content = reasoning
+            elif not content:
+                # content vacío y reasoning tampoco tiene JSON
+                log.error(f"Ni content ni reasoning_content tienen JSON. finish_reason={finish_reason}")
+                raise ValueError(
+                    f"VLM response sin JSON. finish_reason={finish_reason}. "
+                    f"content (first 200): {content[:200] if content else '(empty)'}"
+                )
+            # Si content tiene texto (razonamiento) y reasoning también tiene texto,
+            # pero ninguno es JSON, usar content (que es lo que devuelve el modelo)
+        elif not content:
             log.error(f"VLM devolvió content y reasoning_content vacíos. finish_reason={finish_reason}")
             raise ValueError(
                 f"VLM response vacío (content y reasoning_content ambos vacíos). "
                 f"finish_reason={finish_reason}. "
-                f"Probablemente max_tokens demasiado bajo para modo thinking. "
-                f"Current max_tokens={LLAMA_MAX_TOKENS}"
+                f"max_tokens={LLAMA_MAX_TOKENS}"
             )
 
     content = content.strip()

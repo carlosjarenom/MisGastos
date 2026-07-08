@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
-from config import DOUBLE_CHECK_THRESHOLD
+from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS
 
 log = logging.getLogger(__name__)
 
@@ -130,6 +130,7 @@ def _clean_json_response(raw: str) -> str:
     - "Aquí tienes: {...}" (texto antes/después)
     - <think>reasoning</think>{...} (tags de reasoning)
     - {...} texto extra después
+    - Razonamiento puro sin JSON (devuelve vacío)
 
     Esta función extrae solo el JSON válido.
     """
@@ -154,6 +155,10 @@ def _clean_json_response(raw: str) -> str:
     last_brace = text.rfind('}')
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
         text = text[first_brace:last_brace + 1]
+
+    # 4. Si no hay { ni }, el texto es razonamiento puro sin JSON
+    if '{' not in text:
+        return ""  # json.loads fallará con mensaje claro
 
     return text.strip()
 
@@ -232,13 +237,21 @@ def _call_vlm(image_path: str) -> OCRResult:
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError:
-        raw_preview = raw[:300] if raw else "(empty response)"
+        raw_preview = raw[:500] if raw else "(empty response)"
+        # Detectar si es razonamiento sin JSON (FIX 19D)
+        if '{' not in raw:
+            error_msg = f"vlm_no_json | El modelo razonó pero no produjo JSON. "
+            error_msg += f"Probablemente se quedó sin tokens (finish_reason=length). "
+            error_msg += f"max_tokens={LLAMA_MAX_TOKENS}. "
+            error_msg += f"Response (first 500 chars): {raw_preview}"
+        else:
+            error_msg = f"json_parse_error | VLM response (first 500 chars): {raw_preview}"
         return OCRResult(
             fecha=None, comercio=None, nif=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5-9b",
             raw_output=raw, duration_ms=duration_ms,
-            error=f"json_parse_error | VLM response (first 300 chars): {raw_preview}"
+            error=error_msg
         )
 
     return OCRResult(

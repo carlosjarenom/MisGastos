@@ -7,7 +7,7 @@ import os
 LLAMA_ENDPOINT = "http://localhost:8005/v1"
 LLAMA_MODEL = "qwen3.5-9b"
 LLAMA_TEMPERATURE = 0.1
-LLAMA_MAX_TOKENS = 4096
+LLAMA_MAX_TOKENS = 8192
 DOUBLE_CHECK_THRESHOLD = 50.0  # Tickets > 50€ se leen dos veces
 
 # --- Flask ---
