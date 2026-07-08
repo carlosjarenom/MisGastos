@@ -7,7 +7,7 @@ from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE, LLAMA_MAX_TOK
 
 log = logging.getLogger(__name__)
 
-client = OpenAI(base_url=LLAMA_ENDPOINT, api_key="dummy", timeout=120.0)
+client = OpenAI(base_url=LLAMA_ENDPOINT, api_key="dummy", timeout=90.0)
 
 
 def call_vlm(messages: list, model: str = LLAMA_MODEL, enable_thinking: bool = True) -> str:
