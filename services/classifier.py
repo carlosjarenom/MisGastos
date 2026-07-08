@@ -1,39 +1,9 @@
 """
 services/classifier.py — Clasificación en cascada
 """
+import unicodedata
+import json
 from collections import defaultdict
-
-# Comercios que SIEMPRE son de una categoría concreta
-MERCHANT_CATEGORY_OVERRIDES = {
- "mercadona": 1, # Comida
- "carrefour": 1, # Comida (mayoría)
- "lidl": 1, # Comida
- "dia": 1, # Comida
- "alcampo": 1, # Comida
- "consum": 1, # Comida
- "el corte ingles": 7, # Ocio (ropa, departamental)
- "hipercor": 7, # Ocio
- "leroy merlin": 3, # Limpieza y Hogar
- "ikea": 3, # Limpieza y Hogar
- "repsol": 11, # Carburante
- "cepsa": 11, # Carburante
- "bp": 11, # Carburante
- "shell": 11, # Carburante
- "galp": 11, # Carburante
-}
-
-
-def clasificar_por_comercio_override(comercio: str) -> int | None:
- """Comercios que siempre son de una categoría concreta.
- Returns: category_id or None
- """
- if not comercio:
-  return None
- name_lower = comercio.lower().strip()
- for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
-  if merchant_name in name_lower:
-   return cat_id
- return None
 
 # Keywords con peso por categoría
 KEYWORDS = {
@@ -96,18 +66,21 @@ CATEGORY_MAP = {
     "Comida": 1, "Farmacia y Salud": 2, "Limpieza y Hogar": 3,
     "Transporte": 4, "Cuidado personal": 5, "Educación": 6,
     "Ocio": 7, "Servicios": 8, "Otros": 9, "Mixto": 10,
+    "Carburante": 11, "Parking": 12, "Transporte público": 13, "Mantenimiento coche": 14
 }
 
-# Comercios que siempre son de una categoría concreta (claves en minúsculas sin tildes)
+# Comercios que SIEMPRE son de una categoría concreta (claves en minúsculas sin tildes)
 MERCHANT_CATEGORY_OVERRIDES = {
     "mercadona": 1,
     "carrefour": 1,
     "lidl": 1,
     "aldi": 1,
+    "dia": 1,
+    "alcampo": 1,
+    "consum": 1,
     "supermercado": 1,
     "bonpreu": 1,
     "conadis": 1,
-    "dia": 1,
     "supercor": 1,
     "pulido": 1,
     "farmacia": 2,
@@ -117,6 +90,7 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "carrefour salud": 2,
     "decathlon": 7,
     "el corte ingles": 7,
+    "hipercor": 7,
     "zara": 7,
     "mango": 7,
     "pull and bear": 7,
@@ -125,6 +99,8 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "bershka": 7,
     "massimo dutti": 7,
     "hm": 7,
+    "leroy merlin": 3,
+    "ikea": 3,
     "repsol": 11,
     "cepsa": 11,
     "galp": 11,
@@ -188,8 +164,7 @@ def clasificar_por_comercio(merchant_name: str, merchant_db=None) -> int | None:
                 return merchant["category_id"]
             # Check aliases
             if merchant.get("aliases"):
-                import json as j
-                aliases = j.loads(merchant["aliases"]) if isinstance(merchant["aliases"], str) else merchant["aliases"]
+                aliases = json.loads(merchant["aliases"]) if isinstance(merchant["aliases"], str) else merchant["aliases"]
                 for alias in aliases:
                     if name_lower in alias.lower():
                         return merchant["category_id"]
@@ -204,7 +179,6 @@ def clasificar_por_comercio_override(comercio: str) -> int | None:
     if not comercio:
         return None
     # Normalizar: minúsculas y quitar tildes para matching robusto
-    import unicodedata
     name_lower = comercio.lower().strip()
     name_normalized = unicodedata.normalize('NFD', name_lower).encode('ascii', 'ignore').decode('ascii')
     for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
