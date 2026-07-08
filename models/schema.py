@@ -109,7 +109,16 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_trans_category ON transactions(category_id);
     CREATE INDEX IF NOT EXISTS idx_trans_merchant ON transactions(merchant_id);
     CREATE INDEX IF NOT EXISTS idx_corrections_field ON corrections(field);
+
+    CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT
+    );
     """)
+
+    # Valores por defecto de los ajustes
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('deep_analysis', 'false')")
+    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'light')")
 
     # Migración: añadir columna image_path a scans si no existe
     c.execute("PRAGMA table_info(scans)")

@@ -24,6 +24,32 @@ ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp"}
 
 
 # ============================================================
+# SETTINGS HELPERS
+# ============================================================
+
+def get_setting(key: str, default: str = "") -> str:
+    """Leer un ajuste de la DB."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row['value'] if row else default
+
+def set_setting(key: str, value: str):
+    """Escribir un ajuste en la DB."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, value))
+    conn.commit()
+    conn.close()
+
+def is_deep_analysis_enabled() -> bool:
+    """¿Está activado el análisis profundo (items + products)?"""
+    return get_setting('deep_analysis', 'false') == 'true'
+
+
+# ============================================================
 # JINJA FILTERS
 # ============================================================
 
@@ -200,9 +226,10 @@ def scan_upload():
     original_path = os.path.join(UPLOAD_DIR, original_filename)
     f.save(original_path)
 
-    # Procesar OCR
+    # Procesar OCR (deep_analysis según ajuste)
     try:
-        result = extract_ticket(original_path)
+        deep = is_deep_analysis_enabled()
+        result = extract_ticket(original_path, deep_analysis=deep)
     except ValueError as e:
         # Imagen inválida
         os.remove(original_path)
@@ -401,44 +428,47 @@ def scan_save():
     ))
     txn_id = c.lastrowid
 
-    # Guardar items y calcular suma
+    # Solo guardar items si el análisis profundo está activado
+    deep = is_deep_analysis_enabled()
     items_sum = 0.0
-    for i in range(len(item_descs)):
-        desc = item_descs[i].strip()
-        try:
-            price = float(item_prices[i])
-        except (ValueError, IndexError):
-            price = 0
-        try:
-            qty = float(item_quants[i])
-        except (ValueError, IndexError):
-            qty = 1.0
-        if desc and price > 0:
-            items_sum += price * qty
-            c.execute("""
-                INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
-                VALUES (?, ?, ?, ?, ?)
-            """, (txn_id, desc, qty, price, data["category_id"]))
+    if deep:
+        for i in range(len(item_descs)):
+            desc = item_descs[i].strip()
+            try:
+                price = float(item_prices[i])
+            except (ValueError, IndexError):
+                price = 0
+            try:
+                qty = float(item_quants[i])
+            except (ValueError, IndexError):
+                qty = 1.0
+            if desc and price > 0:
+                items_sum += price * qty
+                c.execute("""
+                    INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (txn_id, desc, qty, price, data["category_id"]))
 
     # Guardar items también en tabla products (historial de precios)
-    for i in range(len(item_descs)):
-        desc = item_descs[i].strip()
-        try:
-            price = float(item_prices[i])
-        except (ValueError, IndexError):
-            price = 0
-        try:
-            qty = float(item_quants[i])
-        except (ValueError, IndexError):
-            qty = 1.0
-        if desc and price > 0:
-            # precio del OCR = precio UNITARIO (no total)
-            # Para gasolina: precio = €/litro, cantidad = litros
-            unit_price = price
-            c.execute("""
-                INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
-                VALUES (?, ?, ?, ?, ?)
-            """, (desc, unit_price, data["date"], txn_id, merchant_id))
+    if deep:
+        for i in range(len(item_descs)):
+            desc = item_descs[i].strip()
+            try:
+                price = float(item_prices[i])
+            except (ValueError, IndexError):
+                price = 0
+            try:
+                qty = float(item_quants[i])
+            except (ValueError, IndexError):
+                qty = 1.0
+            if desc and price > 0:
+                # precio del OCR = precio UNITARIO (no total)
+                # Para gasolina: precio = €/litro, cantidad = litros
+                unit_price = price
+                c.execute("""
+                    INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (desc, unit_price, data["date"], txn_id, merchant_id))
 
     # Actualizar scan → vincular a transacción + marcar como guardado
     if data["scan_id"]:
@@ -878,7 +908,7 @@ def rotate_scan(scan_id, degrees):
     conn.close()
 
     try:
-        result = extract_ticket(rotated_path)
+        result = extract_ticket(rotated_path, deep_analysis=is_deep_analysis_enabled())
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
@@ -946,7 +976,7 @@ def enhance_scan(scan_id):
     conn.close()
 
     try:
-        result = extract_ticket(enhanced_path)
+        result = extract_ticket(enhanced_path, deep_analysis=is_deep_analysis_enabled())
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
@@ -978,6 +1008,39 @@ def enhance_scan(scan_id):
     conn.close()
 
     return redirect(url_for("edit_pending_scan", scan_id=scan_id))
+
+
+# ============================================================
+# AJUSTES
+# ============================================================
+
+@app.route("/settings", methods=["GET", "POST"])
+def settings():
+    """Página de ajustes."""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
+    review_count = c.fetchone()[0] or 0
+    conn.close()
+
+    if request.method == "POST":
+        # Guardar ajustes
+        deep = request.form.get("deep_analysis") == "on"
+        theme = request.form.get("theme", "light")
+        set_setting('deep_analysis', 'true' if deep else 'false')
+        set_setting('theme', theme)
+        return redirect(url_for("settings"))
+
+    # GET: mostrar formulario
+    deep_enabled = is_deep_analysis_enabled()
+    current_theme = get_setting('theme', 'light')
+
+    return render_template(
+        "settings.html",
+        deep_enabled=deep_enabled,
+        current_theme=current_theme,
+        review_queue_count=review_count,
+    )
 
 
 # ============================================================
@@ -1064,40 +1127,43 @@ def new_expense_manual():
         item_descs = request.form.getlist("item_desc[]")
         item_prices = request.form.getlist("item_price[]")
         item_quants = request.form.getlist("item_qty[]")
-        for i in range(len(item_descs)):
-            desc = item_descs[i].strip()
-            try:
-                price = float(item_prices[i])
-            except (ValueError, IndexError):
-                price = 0
-            try:
-                qty = float(item_quants[i])
-            except (ValueError, IndexError):
-                qty = 1.0
-            if desc and price > 0:
-                c.execute("""
-                    INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (txn_id, desc, qty, price, category_id))
+        deep = is_deep_analysis_enabled()
+        if deep:
+            for i in range(len(item_descs)):
+                desc = item_descs[i].strip()
+                try:
+                    price = float(item_prices[i])
+                except (ValueError, IndexError):
+                    price = 0
+                try:
+                    qty = float(item_quants[i])
+                except (ValueError, IndexError):
+                    qty = 1.0
+                if desc and price > 0:
+                    c.execute("""
+                        INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (txn_id, desc, qty, price, category_id))
 
         # Guardar items también en tabla products (historial de precios)
-        for i in range(len(item_descs)):
-            desc = item_descs[i].strip()
-            try:
-                price = float(item_prices[i])
-            except (ValueError, IndexError):
-                price = 0
-            try:
-                qty = float(item_quants[i])
-            except (ValueError, IndexError):
-                qty = 1.0
-            if desc and price > 0:
-                # precio del form = precio UNITARIO (no total)
-                unit_price = price
-                c.execute("""
-                    INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (desc, unit_price, date_val, txn_id, merchant_id))
+        if deep:
+            for i in range(len(item_descs)):
+                desc = item_descs[i].strip()
+                try:
+                    price = float(item_prices[i])
+                except (ValueError, IndexError):
+                    price = 0
+                try:
+                    qty = float(item_quants[i])
+                except (ValueError, IndexError):
+                    qty = 1.0
+                if desc and price > 0:
+                    # precio del form = precio UNITARIO (no total)
+                    unit_price = price
+                    c.execute("""
+                        INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (desc, unit_price, date_val, txn_id, merchant_id))
 
         conn.commit()
         conn.close()

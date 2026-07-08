@@ -74,7 +74,7 @@
  let currentRotation = 0;
  let rotationApplied = false;
  let loadingInterval = null;
- let loadingSeconds = 0;
+ let loadingStartTime = 0;
  const fileInput = document.getElementById('file-input');
  const form = document.getElementById('upload-form');
  const previewContainer = document.getElementById('preview-container');
@@ -128,13 +128,18 @@
 
  // Funciones del timer
  function startTimer() {
- loadingSeconds = 0;
- if (loadingTimer) loadingTimer.textContent = '0s';
+ // Guardar: si ya hay un timer corriendo, NO crear otro
+ if (loadingInterval) return;
+
+ loadingStartTime = Date.now();
+ if (loadingTimer) loadingTimer.textContent = '0.0s';
  loadingDiv.classList.remove('hidden');
+
+ // Actualizar cada 100ms con decimales
  loadingInterval = setInterval(function() {
- loadingSeconds++;
- if (loadingTimer) loadingTimer.textContent = loadingSeconds + 's';
- }, 1000);
+ const elapsed = (Date.now() - loadingStartTime) / 1000;
+ if (loadingTimer) loadingTimer.textContent = elapsed.toFixed(1) + 's';
+ }, 100);
  }
 
  function stopTimer() {

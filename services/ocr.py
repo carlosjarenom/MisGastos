@@ -81,6 +81,36 @@ Esquema esperado:
 Devuelve SOLO el JSON. Nada más."""
 
 
+# Prompt para modo RÁPIDO (sin items, solo total)
+SYSTEM_PROMPT_FAST = """Eres un asistente experto en extraer información estructurada
+de tickets de compra españoles. Tu única salida es un objeto JSON válido,
+sin texto adicional, sin explicaciones, sin markdown.
+
+Reglas críticas:
+1. Formato de fecha ISO: YYYY-MM-DD. Si el ticket muestra "06/07/26",
+ interpreta como 2026-07-06 (siglo XXI).
+2. Números: usa punto como separador decimal (1234.56), nunca coma.
+3. NIF español: formato letra+8 dígitos (A12345678). Si no aparece, usa null.
+4. metodo_pago debe ser uno de: "Efectivo", "Tarjeta", "Bizum", "Transferencia", o null.
+5. Si un campo no se puede leer, usa null.
+6. NO extraigas items individuales. Solo fecha, comercio, NIF, total y metodo_pago.
+7. Tras razonar internamente, tu respuesta FINAL debe ser SOLO el JSON.
+8. DESCUENTOS: el total es el importe final tras descuentos.
+
+Esquema:
+{
+ "overall_confidence": float,
+ "field_confidence": {"fecha": float, "comercio": float, "nif": float, "total": float, "metodo_pago": float},
+ "fecha": "YYYY-MM-DD" | null,
+ "comercio": "string" | null,
+ "nif": "string" | null,
+ "total": float | null,
+ "metodo_pago": "Efectivo" | "Tarjeta" | "Bizum" | "Transferencia" | null
+}
+
+Devuelve SOLO el JSON. Nada más."""
+
+
 @dataclass
 class OCRResult:
     fecha: str | None
@@ -97,21 +127,27 @@ class OCRResult:
     error: str | None = None
 
 
-def extract_ticket(image_path: str) -> OCRResult:
-    """Extraer datos de un ticket usando Qwen3.5-9B."""
+def extract_ticket(image_path: str, deep_analysis: bool = True) -> OCRResult:
+    """Extraer datos de un ticket usando Qwen3.5-9B.
+
+    Args:
+        image_path: ruta a la imagen
+        deep_analysis: si True, extrae items individuales (lento).
+                       si False, solo fecha/comercio/total (rápido).
+    """
     # Preprocesar
     processed = preprocess_image(image_path)
 
     # Primera llamada
-    result = _call_vlm(processed)
+    result = _call_vlm(processed, deep_analysis=deep_analysis)
 
     # Sanity checks
     if not _passes_sanity_check(result):
         result.overall_confidence = 0.0
 
-    # Doble check para tickets grandes
-    if result.total and result.total > DOUBLE_CHECK_THRESHOLD:
-        second = _call_vlm(processed)
+    # Doble check para tickets grandes (solo en modo profundo)
+    if deep_analysis and result.total and result.total > DOUBLE_CHECK_THRESHOLD:
+        second = _call_vlm(processed, deep_analysis=deep_analysis)
         if result.total and second.total:
             discrepancy = abs(result.total - second.total) / max(result.total, 0.01)
             if discrepancy > 0.05:
@@ -163,7 +199,7 @@ def _clean_json_response(raw: str) -> str:
     return text.strip()
 
 
-def _call_vlm(image_path: str) -> OCRResult:
+def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
     """Llamar al VLM con formato data URI limpio (sin newlines en base64).
 
     llama.cpp tiene un bug con el formato data:image/jpeg;base64,
@@ -181,11 +217,15 @@ def _call_vlm(image_path: str) -> OCRResult:
     # Formato data URI estricto (sin espacios, sin newlines)
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
+    # Elegir prompt según modo
+    system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
+    user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
+
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": [
             {"type": "image_url", "image_url": {"url": data_uri}},
-            {"type": "text", "text": USER_PROMPT},
+            {"type": "text", "text": user_prompt},
         ]},
     ]
 
@@ -198,7 +238,7 @@ def _call_vlm(image_path: str) -> OCRResult:
         log.warning(f"Formato data URI falló ({e}). Probando con requests directo...")
 
         try:
-            raw = _call_vlm_direct(image_path, img_b64)
+            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis)
         except Exception as e2:
             return OCRResult(
                 fecha=None, comercio=None, nif=None, items=[], total=None,
@@ -269,7 +309,7 @@ def _call_vlm(image_path: str) -> OCRResult:
     )
 
 
-def _call_vlm_direct(image_path: str, img_b64: str) -> str:
+def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True) -> str:
     """Llamar al VLM con requests directo (bypass de librería openai).
 
     Algunas versiones de la librería openai manipulan el base64
@@ -280,13 +320,16 @@ def _call_vlm_direct(image_path: str, img_b64: str) -> str:
 
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
+    system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
+    user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
+
     payload = {
         "model": LLAMA_MODEL,
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": data_uri}},
-                {"type": "text", "text": USER_PROMPT},
+                {"type": "text", "text": user_prompt},
             ]},
         ],
         "temperature": LLAMA_TEMPERATURE,
