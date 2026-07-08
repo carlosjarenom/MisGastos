@@ -57,7 +57,7 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
         description TEXT NOT NULL,
-        quantity INTEGER DEFAULT 1,
+        quantity REAL DEFAULT 1.0,
         unit_price REAL NOT NULL,
         category_id INTEGER REFERENCES categories(id)
     );
@@ -123,6 +123,30 @@ def init_db():
             "INSERT OR IGNORE INTO categories (id, name, parent_id, color) VALUES (?, ?, ?, ?)",
             cat
         )
+
+    # FIX 18: Migrar quantity de INTEGER a REAL en transaction_items
+    # SQLite no soporta ALTER COLUMN, así que recrear la tabla
+    c.execute("PRAGMA table_info(transaction_items)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'quantity' in columns:
+        # Verificar si quantity es INTEGER (necesita migración)
+        c.execute("SELECT typeof(quantity) FROM transaction_items LIMIT 1")
+        type_row = c.fetchone()
+        if type_row and type_row[0] == 'integer':
+            # Recrear tabla con quantity REAL
+            c.execute("ALTER TABLE transaction_items RENAME TO transaction_items_old")
+            c.execute("""
+                CREATE TABLE transaction_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+                    description TEXT NOT NULL,
+                    quantity REAL DEFAULT 1.0,
+                    unit_price REAL NOT NULL,
+                    category_id INTEGER REFERENCES categories(id)
+                )
+            """)
+            c.execute("INSERT INTO transaction_items SELECT * FROM transaction_items_old")
+            c.execute("DROP TABLE transaction_items_old")
 
     conn.commit()
     conn.close()

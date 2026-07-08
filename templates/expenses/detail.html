@@ -60,7 +60,7 @@
  {% for item in items %}
  <tr>
  <td class="px-4 py-2">{{ item.description }}</td>
- <td class="px-4 py-2 text-center">{{ item.quantity }}</td>
+ <td class="px-4 py-2 text-center">{{ "%.3f"|format(item.quantity) if item.quantity != item.quantity|int else item.quantity|int }}</td>
  <td class="px-4 py-2 text-right">{{ "%.2f"|format(item.unit_price) }}€</td>
  <td class="px-4 py-2 text-right font-medium">{{ "%.2f"|format(item.quantity * item.unit_price) }}€</td>
  </tr>

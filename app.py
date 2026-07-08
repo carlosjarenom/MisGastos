@@ -410,9 +410,9 @@ def scan_save():
         except (ValueError, IndexError):
             price = 0
         try:
-            qty = int(item_quants[i])
+            qty = float(item_quants[i])
         except (ValueError, IndexError):
-            qty = 1
+            qty = 1.0
         if desc and price > 0:
             items_sum += price * qty
             c.execute("""
@@ -428,9 +428,9 @@ def scan_save():
         except (ValueError, IndexError):
             price = 0
         try:
-            qty = int(item_quants[i])
+            qty = float(item_quants[i])
         except (ValueError, IndexError):
-            qty = 1
+            qty = 1.0
         if desc and price > 0:
             # precio del OCR = precio UNITARIO (no total)
             # Para gasolina: precio = €/litro, cantidad = litros
@@ -1071,9 +1071,9 @@ def new_expense_manual():
             except (ValueError, IndexError):
                 price = 0
             try:
-                qty = int(item_quants[i])
+                qty = float(item_quants[i])
             except (ValueError, IndexError):
-                qty = 1
+                qty = 1.0
             if desc and price > 0:
                 c.execute("""
                     INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
@@ -1088,9 +1088,9 @@ def new_expense_manual():
             except (ValueError, IndexError):
                 price = 0
             try:
-                qty = int(item_quants[i])
+                qty = float(item_quants[i])
             except (ValueError, IndexError):
-                qty = 1
+                qty = 1.0
             if desc and price > 0:
                 # precio del form = precio UNITARIO (no total)
                 unit_price = price
