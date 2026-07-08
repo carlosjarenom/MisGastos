@@ -64,7 +64,8 @@
  <div id="loading" class="hidden text-center py-8">
  <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 dark:border-accent border-t-transparent"></div>
  <p class="mt-4 text-lg font-semibold text-gray-700 dark:text-darkfg">Procesando ticket...</p>
- <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-1">El modelo de IA está leyendo el ticket (3-10 segundos)</p>
+ <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-1">El modelo de IA está leyendo el ticket</p>
+ <p class="text-2xl font-bold text-blue-600 dark:text-accent mt-3" id="loading-timer">0s</p>
  </div>
 
  <div id="result" class="mt-6"></div>
@@ -72,6 +73,7 @@
 
 <script>
  let currentRotation = 0;
+ let rotationApplied = false;
  const fileInput = document.getElementById('file-input');
  const form = document.getElementById('upload-form');
  const previewContainer = document.getElementById('preview-container');
@@ -84,6 +86,7 @@
  currentRotation = (currentRotation + degrees) % 360;
  if (currentRotation < 0) currentRotation += 360;
  previewImage.style.transform = `rotate(${currentRotation}deg)`;
+ rotationApplied = false;
  };
 
  fileInput.addEventListener('change', function(e) {
@@ -100,6 +103,7 @@
  uploadButtons.classList.add('hidden');
  processButton.classList.remove('hidden');
  currentRotation = 0;
+ rotationApplied = false;
  previewImage.style.transform = 'rotate(0deg)';
  };
  reader.readAsDataURL(file);
@@ -120,12 +124,19 @@
  });
 
  form.addEventListener('htmx:configRequest', function(evt) {
+ if (rotationApplied) {
+ return;
+ }
+
  if (currentRotation !== 0 && previewImage.src) {
+ evt.preventDefault();
+ rotationApplied = true;
+
  const canvas = document.createElement('canvas');
  const ctx = canvas.getContext('2d');
  const img = new Image();
  img.src = previewImage.src;
- evt.preventDefault();
+
  img.onload = function() {
  if (currentRotation === 90 || currentRotation === 270) {
  canvas.width = img.height; canvas.height = img.width;
@@ -135,6 +146,7 @@
  ctx.translate(canvas.width / 2, canvas.height / 2);
  ctx.rotate(currentRotation * Math.PI / 180);
  ctx.drawImage(img, -img.width / 2, -img.height / 2);
+
  canvas.toBlob(function(blob) {
  const file = new File([blob], 'rotated.jpg', { type: 'image/jpeg' });
  const dt = new DataTransfer();
@@ -143,6 +155,38 @@
  htmx.trigger(form, 'submit');
  }, 'image/jpeg', 0.9);
  };
+ }
+ });
+
+ // Contador durante procesamiento
+ let loadingInterval = null;
+ let loadingSeconds = 0;
+
+ function startTimer() {
+ loadingSeconds = 0;
+ document.getElementById('loading-timer').textContent = '0s';
+ loadingInterval = setInterval(function() {
+ loadingSeconds++;
+ document.getElementById('loading-timer').textContent = loadingSeconds + 's';
+ }, 1000);
+ }
+
+ function stopTimer() {
+ if (loadingInterval) {
+ clearInterval(loadingInterval);
+ loadingInterval = null;
+ }
+ }
+
+ document.body.addEventListener('htmx:beforeRequest', function(evt) {
+ if (evt.detail.elt.id === 'upload-form' || evt.detail.elt === form) {
+ startTimer();
+ }
+ });
+
+ document.body.addEventListener('htmx:afterRequest', function(evt) {
+ if (evt.detail.elt.id === 'upload-form' || evt.detail.elt === form) {
+ stopTimer();
  }
  });
 </script>

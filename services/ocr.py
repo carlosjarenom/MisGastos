@@ -31,8 +31,12 @@ Reglas críticas:
  "Transferencia", o null si no se puede leer. NUNCA uses "desconocido".
 5. Si un campo no se puede leer con seguridad, usa null Y pon su
  confidence a 0.0. NO inventes.
-6. items: lista de objetos con descripcion, cantidad (entero, default 1),
- precio (decimal). Incluye solo productos, no líneas de IVA ni subtotales.
+6. items: lista de objetos con descripcion, cantidad (entero o decimal),
+ precio (decimal = PRECIO UNITARIO en euros, no total).
+ Para gasolina/diésel: precio = €/litro, cantidad = litros.
+ Ejemplo: {"descripcion": "Diésel", "cantidad": 30.5, "precio": 1.45}
+ significa 30.5 litros a 1.45€/litro.
+ Incluye solo productos, no líneas de IVA ni subtotales.
 7. Si el ticket está en multicolumna, lee de izquierda a derecha,
  arriba a abajo.
 8. confidence: para cada campo, indica tu confianza (0.0 a 1.0).
@@ -61,7 +65,7 @@ Esquema esperado:
  "comercio": "string" | null,
  "nif": "string" | null,
  "items": [
- {"descripcion": "string", "cantidad": int, "precio": float}
+ {"descripcion": "string", "cantidad": float, "precio": float}
  ],
  "subtotal": float | null,
  "iva": float | null,
@@ -298,7 +302,7 @@ def _passes_sanity_check(r: OCRResult) -> bool:
     if not r.total or r.total <= 0 or r.total > 10000:
         return False
     if r.items and r.total:
-        items_sum = sum(i.get("precio", 0) * i.get("cantidad", 1) for i in r.items)
+        items_sum = sum(i.get("precio", 0) * float(i.get("cantidad", 1)) for i in r.items)
         if items_sum > 0 and abs(items_sum - r.total) > 0.05:
             return False
     if r.fecha:

@@ -427,7 +427,9 @@ def scan_save():
         except (ValueError, IndexError):
             qty = 1
         if desc and price > 0:
-            unit_price = price / qty if qty > 0 else price
+            # precio del OCR = precio UNITARIO (no total)
+            # Para gasolina: precio = €/litro, cantidad = litros
+            unit_price = price
             c.execute("""
                 INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                 VALUES (?, ?, ?, ?, ?)
@@ -1064,7 +1066,8 @@ def new_expense_manual():
             except (ValueError, IndexError):
                 qty = 1
             if desc and price > 0:
-                unit_price = price / qty if qty > 0 else price
+                # precio del form = precio UNITARIO (no total)
+                unit_price = price
                 c.execute("""
                     INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                     VALUES (?, ?, ?, ?, ?)
