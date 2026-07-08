@@ -3,26 +3,6 @@ services/classifier.py — Clasificación en cascada
 """
 from collections import defaultdict
 
-# Comercios que SIEMPRE son de una categoría concreta
-MERCHANT_CATEGORY_OVERRIDES = {
- "mercadona": 1, # Comida
- "carrefour": 1, # Comida (mayoría)
- "lidl": 1, # Comida
- "dia": 1, # Comida
- "alcampo": 1, # Comida
- "consum": 1, # Comida
- "el corte ingles": 7, # Ocio (ropa, departamental)
- "hipercor": 7, # Ocio
- "leroy merlin": 3, # Limpieza y Hogar
- "ikea": 3, # Limpieza y Hogar
- "repsol": 11, # Carburante
- "cepsa": 11, # Carburante
- "bp": 11, # Carburante
- "shell": 11, # Carburante
- "galp": 11, # Carburante
-}
-
-
 def clasificar_por_comercio_override(comercio: str) -> int | None:
  """Comercios que siempre son de una categoría concreta.
  Returns: category_id or None
@@ -96,6 +76,7 @@ CATEGORY_MAP = {
     "Comida": 1, "Farmacia y Salud": 2, "Limpieza y Hogar": 3,
     "Transporte": 4, "Cuidado personal": 5, "Educación": 6,
     "Ocio": 7, "Servicios": 8, "Otros": 9, "Mixto": 10,
+    "Ropa": 15, "Banco": 16,
 }
 
 # Comercios que siempre son de una categoría concreta (claves en minúsculas sin tildes)
@@ -106,6 +87,7 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "aldi": 1,
     "supermercado": 1,
     "bonpreu": 1,
+    "consum": 1,
     "conadis": 1,
     "dia": 1,
     "supercor": 1,
@@ -115,8 +97,9 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "drogueria": 2,
     "mercadona farmacia": 2,
     "carrefour salud": 2,
-    "decathlon": 7,
-    "el corte ingles": 7,
+    "decathlon": 7,  # Ocio (deportes)
+    "el corte ingles": 15,  # Ropa
+    "hipercor": 15,  # Ropa
     "zara": 7,
     "mango": 7,
     "pull and bear": 7,
@@ -131,6 +114,7 @@ MERCHANT_CATEGORY_OVERRIDES = {
     "total": 11,
     "shell": 11,
     "bp": 11,
+    "gas express": 11,  # Carburante
     "iberdrola": 8,
     "endesa": 8,
     "naturgy": 8,
