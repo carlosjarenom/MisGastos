@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="max-w-2xl mx-auto">
- <h1 class="text-xl font-semibold mb-6">📷 Subir ticket</h1>
+ <h1 class="text-xl font-semibold mb-4">📷 Subir ticket</h1>
 
  {% if error %}
  <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-600 p-4 mb-6">
@@ -61,11 +61,10 @@
  </div>
  </form>
 
- <div id="loading" class="hidden text-center py-8">
- <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 dark:border-accent border-t-transparent"></div>
- <p class="mt-4 text-lg font-semibold text-gray-700 dark:text-darkfg">Procesando ticket...</p>
- <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-1">El modelo de IA está leyendo el ticket</p>
- <p class="text-2xl font-bold text-blue-600 dark:text-accent mt-3" id="loading-timer">0s</p>
+ <!-- Spinner + contador (mostrado por HTMX) -->
+ <div id="loading" class="hidden text-center py-6">
+ <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-blue-600 dark:border-accent border-t-transparent"></div>
+ <p class="mt-3 text-sm font-semibold text-gray-700 dark:text-darkfg">Procesando... <span id="loading-timer" class="text-blue-600 dark:text-accent font-mono">0s</span></p>
  </div>
 
  <div id="result" class="mt-6"></div>
@@ -74,6 +73,8 @@
 <script>
  let currentRotation = 0;
  let rotationApplied = false;
+ let loadingInterval = null;
+ let loadingSeconds = 0;
  const fileInput = document.getElementById('file-input');
  const form = document.getElementById('upload-form');
  const previewContainer = document.getElementById('preview-container');
@@ -81,6 +82,8 @@
  const previewName = document.getElementById('preview-name');
  const uploadButtons = document.getElementById('upload-buttons');
  const processButton = document.getElementById('process-button');
+ const loadingDiv = document.getElementById('loading');
+ const loadingTimer = document.getElementById('loading-timer');
 
  window.rotatePreview = function(degrees) {
  currentRotation = (currentRotation + degrees) % 360;
@@ -123,6 +126,47 @@
  }
  });
 
+ // Funciones del timer
+ function startTimer() {
+ loadingSeconds = 0;
+ if (loadingTimer) loadingTimer.textContent = '0s';
+ loadingDiv.classList.remove('hidden');
+ loadingInterval = setInterval(function() {
+ loadingSeconds++;
+ if (loadingTimer) loadingTimer.textContent = loadingSeconds + 's';
+ }, 1000);
+ }
+
+ function stopTimer() {
+ if (loadingInterval) {
+ clearInterval(loadingInterval);
+ loadingInterval = null;
+ }
+ loadingDiv.classList.add('hidden');
+ }
+
+ // Capturar envío del formulario INICIA timer
+ form.addEventListener('submit', function(e) {
+ // Si la rotación no se ha aplicado aún y hay rotación, dejar que configRequest lo maneje
+ if (!rotationApplied && currentRotation !== 0) {
+ return; // configRequest se encarga
+ }
+ // Si no hay rotación o ya se aplicó, iniciar timer
+ startTimer();
+ });
+
+ // HTMX: parar timer cuando termina la petición
+ document.body.addEventListener('htmx:afterRequest', function(evt) {
+ if (evt.detail.elt === form || evt.detail.elt.id === 'upload-form') {
+ stopTimer();
+ }
+ });
+
+ // HTMX: también parar si hay error
+ document.body.addEventListener('htmx:responseError', function(evt) {
+ stopTimer();
+ });
+
  form.addEventListener('htmx:configRequest', function(evt) {
  if (rotationApplied) {
  return;
@@ -152,41 +196,13 @@
  const dt = new DataTransfer();
  dt.items.add(file);
  fileInput.files = dt.files;
+ startTimer(); // ← Iniciar timer ANTES de re-disparar
  htmx.trigger(form, 'submit');
  }, 'image/jpeg', 0.9);
  };
- }
- });
-
- // Contador durante procesamiento
- let loadingInterval = null;
- let loadingSeconds = 0;
-
- function startTimer() {
- loadingSeconds = 0;
- document.getElementById('loading-timer').textContent = '0s';
- loadingInterval = setInterval(function() {
- loadingSeconds++;
- document.getElementById('loading-timer').textContent = loadingSeconds + 's';
- }, 1000);
- }
-
- function stopTimer() {
- if (loadingInterval) {
- clearInterval(loadingInterval);
- loadingInterval = null;
- }
- }
-
- document.body.addEventListener('htmx:beforeRequest', function(evt) {
- if (evt.detail.elt.id === 'upload-form' || evt.detail.elt === form) {
+ } else {
+ // Sin rotación: el form se envía normalmente, iniciar timer
  startTimer();
- }
- });
-
- document.body.addEventListener('htmx:afterRequest', function(evt) {
- if (evt.detail.elt.id === 'upload-form' || evt.detail.elt === form) {
- stopTimer();
  }
  });
 </script>

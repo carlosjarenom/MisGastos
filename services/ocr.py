@@ -31,11 +31,13 @@ Reglas críticas:
  "Transferencia", o null si no se puede leer. NUNCA uses "desconocido".
 5. Si un campo no se puede leer con seguridad, usa null Y pon su
  confidence a 0.0. NO inventes.
-6. items: lista de objetos con descripcion, cantidad (entero o decimal),
+6. items: lista de objetos con descripcion, cantidad (float),
  precio (decimal = PRECIO UNITARIO en euros, no total).
- Para gasolina/diésel: precio = €/litro, cantidad = litros.
- Ejemplo: {"descripcion": "Diésel", "cantidad": 30.5, "precio": 1.45}
- significa 30.5 litros a 1.45€/litro.
+ - Para productos por unidad: cantidad = unidades, precio = €/unidad
+ - Para productos por peso (fruta, carne, pescado, verdura): cantidad = kg, precio = €/kg
+ - Para gasolina/diésel: cantidad = litros, precio = €/litro
+ Ejemplo: {"descripcion": "Plátanos", "cantidad": 0.85, "precio": 1.89}
+ significa 0.85 kg a 1.89€/kg.
  Incluye solo productos, no líneas de IVA ni subtotales.
 7. Si el ticket está en multicolumna, lee de izquierda a derecha,
  arriba a abajo.
@@ -46,7 +48,10 @@ Reglas críticas:
 10. Si el ticket NO es legible en absoluto, devuelve:
  {"overall_confidence": 0.0, "error": "ticket_no_legible"}
 11. Tras razonar internamente, tu respuesta FINAL debe ser SOLO el JSON.
- Puedes pensar antes de responder, pero el output final debe ser JSON válido."""
+ Puedes pensar antes de responder, pero el output final debe ser JSON válido.
+12. DESCUENTOS: Si el ticket tiene descuentos u ofertas, inclúyelos como
+ un item con descripcion="DESCUENTO" y precio negativo (ej: -8.98).
+ Así la suma de items cuadrará con el total."""
 
 USER_PROMPT = """Extrae los datos de este ticket en JSON.
 
@@ -303,7 +308,7 @@ def _passes_sanity_check(r: OCRResult) -> bool:
         return False
     if r.items and r.total:
         items_sum = sum(i.get("precio", 0) * float(i.get("cantidad", 1)) for i in r.items)
-        if items_sum > 0 and abs(items_sum - r.total) > 0.05:
+        if items_sum > 0 and abs(items_sum - r.total) > 0.50: # 0.50€ tolerancia por redondeos
             return False
     if r.fecha:
         try:

@@ -12,7 +12,7 @@ from flask import Flask, render_template, request, redirect, url_for, send_from_
 from werkzeug.utils import secure_filename
 from models.schema import get_db, init_db
 from services.ocr import extract_ticket
-from services.classifier import clasificar_por_items, clasificar_por_comercio
+from services.classifier import clasificar_por_items, clasificar_por_comercio, clasificar_por_comercio_override
 from services.excel import import_excel, export_excel
 from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
 
@@ -212,14 +212,19 @@ def scan_upload():
             review_queue_count=0,
         )
 
-    # Auto-clasificar — cascada en orden correcto (v5)
-    # Nivel 1: merchant conocido (prioridad más alta)
+    # Auto-clasificar — cascada en orden correcto (v6: override primero)
+    # Nivel 0: overrides por comercio (Mercadona=Comida, Repsol=Carburante, etc.)
+    # Nivel 1: merchant conocido en DB
     # Nivel 2: heurística por items
     # Nivel 3: fallback a Otros
     auto_cat_id = None
 
-    # Nivel 1: merchant conocido
+    # Nivel 0: overrides por comercio
     if result.comercio:
+        auto_cat_id = clasificar_por_comercio_override(result.comercio)
+
+    # Nivel 1: merchant conocido en DB
+    if auto_cat_id is None and result.comercio:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{result.comercio}%",))
@@ -472,51 +477,62 @@ def scan_save():
 
 @app.route("/expenses")
 def expenses():
-    """Lista de gastos con filtros."""
+    """Historial de gastos agrupado por año → mes."""
     conn = get_db()
     c = conn.cursor()
 
-    month = request.args.get("month", None)
-    category = request.args.get("category", None)
-
-    where = ["t.kind='expense'"]
-    params = []
-
-    if month:
-        where.append("t.date LIKE ?")
-        params.append(f"{month}-%")
-
-    if category:
-        where.append("t.category_id = ?")
-        params.append(int(category))
-
-    query = """
-        SELECT t.*, c.name as category_name, m.name as merchant_name
+    # Obtener todos los gastos con su scan (para mostrar imagen)
+    c.execute("""
+        SELECT t.*, c.name as category_name, c.color as category_color,
+            m.name as merchant_name, s.image_path as scan_image
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN merchants m ON t.merchant_id = m.id
-        WHERE {}
+        LEFT JOIN scans s ON s.transaction_id = t.id AND s.status = 'saved'
+        WHERE t.kind='expense'
         ORDER BY t.date DESC, t.id DESC
-        LIMIT 100
-    """.format(" AND ".join(where))
+        LIMIT 500
+    """)
+    all_expenses = c.fetchall()
 
-    c.execute(query, params)
-    expenses_list = c.fetchall()
+    # Agrupar por año → mes
+    grouped = {}
+    for exp in all_expenses:
+        year = exp['date'][:4] if exp['date'] else 'Sin fecha'
+        month = exp['date'][5:7] if exp['date'] else '??'
+        if year not in grouped:
+            grouped[year] = {}
+        if month not in grouped[year]:
+            grouped[year][month] = []
+        grouped[year][month].append(exp)
+
+    # Ordenar por año descendente, meses descendente dentro de cada año
+    sorted_grouped = dict(sorted(grouped.items(), reverse=True))
+    for year in sorted_grouped:
+        sorted_grouped[year] = dict(sorted(sorted_grouped[year].items(), reverse=True))
 
     # Categorías para filtro
     c.execute("SELECT id, name, color FROM categories WHERE parent_id IS NULL ORDER BY name")
     categories = c.fetchall()
 
-    # Cola de revisión
     c.execute("SELECT COUNT(*) FROM scans WHERE status = 'pending'")
     review_count = c.fetchone()[0] or 0
 
     conn.close()
 
+    # Nombres de meses en español
+    meses_es = {
+        '01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
+        '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
+        '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre',
+        '??': 'Sin fecha'
+    }
+
     return render_template(
         "expenses/list.html",
-        expenses=expenses_list,
+        grouped=sorted_grouped,
         categories=categories,
+        meses_es=meses_es,
         review_queue_count=review_count,
     )
 
@@ -747,13 +763,17 @@ def edit_pending_scan(scan_id):
     except json.JSONDecodeError:
         data = {}
 
-    # Auto-clasificar — cascada completa (igual que scan_upload)
+    # Auto-clasificar — cascada completa (igual que scan_upload, v6)
     auto_cat_id = None
     comercio = data.get("comercio")
     items = data.get("items", [])
 
-    # Nivel 1: merchant conocido (O6: reusar cursor c)
+    # Nivel 0: overrides por comercio
     if comercio:
+        auto_cat_id = clasificar_por_comercio_override(comercio)
+
+    # Nivel 1: merchant conocido (O6: reusar cursor c)
+    if auto_cat_id is None and comercio:
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{comercio}%",))
         mrow = c.fetchone()
         if mrow and mrow['default_category_id']:
@@ -862,8 +882,11 @@ def rotate_scan(scan_id, degrees):
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
+    # Auto-clasificar v6: override primero
     auto_cat_id = None
     if result.comercio:
+        auto_cat_id = clasificar_por_comercio_override(result.comercio)
+    if auto_cat_id is None and result.comercio:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?",
@@ -927,8 +950,11 @@ def enhance_scan(scan_id):
     except Exception as e:
         return f"Error al re-procesar: {e}", 500
 
+    # Auto-clasificar v6: override primero
     auto_cat_id = None
     if result.comercio:
+        auto_cat_id = clasificar_por_comercio_override(result.comercio)
+    if auto_cat_id is None and result.comercio:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?",

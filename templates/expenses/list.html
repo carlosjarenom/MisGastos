@@ -6,76 +6,85 @@
  <h1 class="text-xl font-semibold">Historial de gastos</h1>
 </div>
 
-<!-- Filtros -->
-<div class="border border-gray-200 dark:border-gray-700 rounded p-4 mb-4 bg-white dark:bg-darkcanvas-subtle">
- <form method="GET" action="/expenses" class="flex gap-3 flex-wrap items-end">
- <div>
- <label class="block text-xs font-medium text-fg-muted mb-1">Mes</label>
- <input type="month" name="month" class="border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 text-sm" value="{{ request.args.get('month', '') }}">
+{% if grouped %}
+<div class="space-y-6">
+ {% for year, months in grouped.items() %}
+ <div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden bg-white dark:bg-darkcanvas-subtle">
+ <!-- Año -->
+ <div class="bg-canvas-subtle dark:bg-darkcanvas-inset px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+ <h2 class="text-lg font-bold">{{ year }}</h2>
  </div>
- <div>
- <label class="block text-xs font-medium text-fg-muted mb-1">Categoría</label>
- <select name="category" class="border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 text-sm">
- <option value="">Todas</option>
- {% for cat in categories %}
- <option value="{{ cat.id }}" {% if request.args.get('category') == cat.id|string %}selected{% endif %}>{{ cat.name }}</option>
- {% endfor %}
- </select>
- </div>
- <button type="submit" class="px-3 py-1 bg-accent text-white rounded text-sm font-medium hover:bg-accent-emphasis">Filtrar</button>
- </form>
-</div>
 
-<!-- Tabla -->
-<div class="border border-gray-200 dark:border-gray-700 rounded overflow-hidden bg-white dark:bg-darkcanvas-subtle">
- {% if expenses %}
- <div class="overflow-x-auto">
- <table class="w-full text-sm">
- <thead class="bg-canvas-subtle dark:bg-darkcanvas-inset border-b border-gray-200 dark:border-gray-700">
- <tr>
- <th class="text-left px-4 py-2 font-semibold">Fecha</th>
- <th class="text-left px-4 py-2 font-semibold">Comercio</th>
- <th class="text-left px-4 py-2 font-semibold">Categoría</th>
- <th class="text-right px-4 py-2 font-semibold">Total</th>
- <th class="text-center px-4 py-2 font-semibold">Acciones</th>
- </tr>
- </thead>
- <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
+ <!-- Meses -->
+ <div class="divide-y divide-gray-100 dark:divide-gray-800">
+ {% for month, expenses in months.items() %}
+ <div class="p-4">
+ <h3 class="text-sm font-semibold text-fg-muted uppercase tracking-wide mb-3">
+ {{ meses_es.get(month, month) }}
+ <span class="text-fg-muted font-normal">({{ expenses|length }} tickets)</span>
+ </h3>
+
+ <!-- Tickets de este mes -->
+ <div class="space-y-3">
  {% for exp in expenses %}
- <tr class="hover:bg-canvas-subtle dark:hover:bg-darkcanvas">
- <td class="px-4 py-2 whitespace-nowrap">{{ exp.date | format_date_es }}</td>
- <td class="px-4 py-2">
- <a href="/expense/{{ exp.id }}" class="text-accent hover:underline">
+ <div class="flex gap-4 border border-gray-100 dark:border-gray-800 rounded p-3 hover:bg-canvas-subtle dark:hover:bg-darkcanvas">
+ <!-- Imagen del ticket (si existe) -->
+ {% if exp.scan_image %}
+ <div class="flex-shrink-0">
+ <img src="/scan/image/{{ exp.scan_image }}"
+ class="w-16 h-20 object-cover rounded border border-gray-200 dark:border-gray-700 cursor-pointer"
+ onclick="window.open('/scan/image/{{ exp.scan_image }}', '_blank')"
+ title="Ver imagen del ticket"
+ alt="Ticket">
+ </div>
+ {% else %}
+ <div class="flex-shrink-0 w-16 h-20 bg-gray-100 dark:bg-gray-800 rounded border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+ <span class="text-xs text-gray-400">Sin imagen</span>
+ </div>
+ {% endif %}
+
+ <!-- Info del ticket -->
+ <div class="flex-1 min-w-0">
+ <div class="flex justify-between items-start">
+ <div>
+ <a href="/expense/{{ exp.id }}" class="font-medium text-accent hover:underline">
  {{ exp.merchant_name or exp.description or '(sin descripción)' }}
  </a>
- </td>
- <td class="px-4 py-2">
- {% if exp.category_id %}
- <span class="inline-flex items-center gap-1">
- <span class="w-2.5 h-2.5 rounded-full" style="background: {{ categories|selectattr('id','equalto',exp.category_id)|map(attribute='color')|first or '#6366f1' }}"></span>
- {{ exp.category_name or '-' }}
+ <p class="text-xs text-fg-muted mt-0.5">
+ {{ exp.date | format_date_es }}
+ {% if exp.category_name %}
+ · <span class="inline-flex items-center gap-1">
+ <span class="w-2 h-2 rounded-full" style="background: {{ exp.category_color or '#6366f1' }}"></span>
+ {{ exp.category_name }}
  </span>
- {% else %}
- <span class="text-fg-muted">-</span>
  {% endif %}
- </td>
- <td class="px-4 py-2 text-right font-semibold">{{ "%.2f"|format(exp.total) }}€</td>
- <td class="px-4 py-2 text-center whitespace-nowrap">
- <a href="/expense/{{ exp.id }}/edit" class="text-fg-muted hover:text-accent" title="Editar">✏️</a>
- <form method="POST" action="/expense/{{ exp.id }}/delete" class="inline" onsubmit="return confirm('¿Borrar este gasto?')">
- <button type="submit" class="text-fg-muted hover:text-danger ml-2" title="Borrar">🗑️</button>
- </form>
- </td>
- </tr>
- {% endfor %}
- </tbody>
- </table>
+ {% if exp.payment_method %}· {{ exp.payment_method }}{% endif %}
+ </p>
  </div>
- {% else %}
- <div class="text-center py-12 text-fg-muted">
+ <div class="text-right flex-shrink-0">
+ <span class="font-bold">{{ "%.2f"|format(exp.total) }}€</span>
+ <div class="flex gap-1 mt-1 justify-end">
+ <a href="/expense/{{ exp.id }}/edit" class="text-fg-muted hover:text-accent text-xs">✏️</a>
+ <form method="POST" action="/expense/{{ exp.id }}/delete" class="inline" onsubmit="return confirm('¿Borrar?')">
+ <button type="submit" class="text-fg-muted hover:text-danger text-xs">🗑️</button>
+ </form>
+ </div>
+ </div>
+ </div>
+ </div>
+ </div>
+ {% endfor %}
+ </div>
+ </div>
+ {% endfor %}
+ </div>
+ </div>
+ {% endfor %}
+</div>
+{% else %}
+<div class="text-center py-12 text-fg-muted">
  <p class="text-base">No hay gastos registrados</p>
  <a href="/scan" class="text-accent hover:underline mt-2 inline-block">📷 Sube tu primer ticket</a>
- </div>
- {% endif %}
 </div>
+{% endif %}
 {% endblock %}

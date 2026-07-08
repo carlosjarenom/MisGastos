@@ -3,6 +3,38 @@ services/classifier.py — Clasificación en cascada
 """
 from collections import defaultdict
 
+# Comercios que SIEMPRE son de una categoría concreta
+MERCHANT_CATEGORY_OVERRIDES = {
+ "mercadona": 1, # Comida
+ "carrefour": 1, # Comida (mayoría)
+ "lidl": 1, # Comida
+ "dia": 1, # Comida
+ "alcampo": 1, # Comida
+ "consum": 1, # Comida
+ "el corte ingles": 7, # Ocio (ropa, departamental)
+ "hipercor": 7, # Ocio
+ "leroy merlin": 3, # Limpieza y Hogar
+ "ikea": 3, # Limpieza y Hogar
+ "repsol": 11, # Carburante
+ "cepsa": 11, # Carburante
+ "bp": 11, # Carburante
+ "shell": 11, # Carburante
+ "galp": 11, # Carburante
+}
+
+
+def clasificar_por_comercio_override(comercio: str) -> int | None:
+ """Comercios que siempre son de una categoría concreta.
+ Returns: category_id or None
+ """
+ if not comercio:
+  return None
+ name_lower = comercio.lower().strip()
+ for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
+  if merchant_name in name_lower:
+   return cat_id
+ return None
+
 # Keywords con peso por categoría
 KEYWORDS = {
     "Comida": {
