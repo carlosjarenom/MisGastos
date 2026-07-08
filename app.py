@@ -331,6 +331,7 @@ def scan_save():
         "date": request.form.get("date"),
         "merchant": request.form.get("merchant", "").strip(),
         "card_last4": request.form.get("card_last4", "").strip() or None,
+        "vehicle": request.form.get("vehicle", "").strip() or None,
         "total": total,
         "category_id": category_id,
         "payment_method": request.form.get("payment_method", ""),
@@ -386,14 +387,15 @@ def scan_save():
 
     # Insertar transacción
     c.execute("""
-        INSERT INTO transactions (kind, date, merchant_id, total, payment_method, category_id, source, ocr_confidence, field_confidence, card_last4)
-        VALUES ('expense', ?, ?, ?, ?, ?, 'ocr', ?, ?, ?)
+        INSERT INTO transactions (kind, date, merchant_id, total, payment_method, category_id, source, ocr_confidence, field_confidence, card_last4, vehicle)
+        VALUES ('expense', ?, ?, ?, ?, ?, 'ocr', ?, ?, ?, ?)
     """, (
         data["date"], merchant_id, data["total"],
         data["payment_method"] if data["payment_method"] else None,
         data["category_id"],
         ocr_confidence, field_confidence_json,
-        data["card_last4"]
+        data["card_last4"],
+        data["vehicle"]
     ))
     txn_id = c.lastrowid
 
@@ -1075,6 +1077,7 @@ def new_expense_manual():
         date_val = request.form.get("date", "")
         merchant = request.form.get("merchant", "").strip()
         card_last4 = request.form.get("card_last4", "").strip() or None
+        vehicle = request.form.get("vehicle", "").strip() or None
         payment_method = request.form.get("payment_method", "")
         description = request.form.get("description", "").strip()
         kind = request.form.get("kind", "expense")
@@ -1102,10 +1105,10 @@ def new_expense_manual():
                 merchant_id = c.lastrowid
 
         c.execute("""
-            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source, card_last4)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?)
+            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source, card_last4, vehicle)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?)
         """, (kind, date_val, description or None, merchant_id, total,
-              payment_method if payment_method else None, category_id, card_last4))
+              payment_method if payment_method else None, category_id, card_last4, vehicle))
         txn_id = c.lastrowid
 
         item_descs = request.form.getlist("item_desc[]")

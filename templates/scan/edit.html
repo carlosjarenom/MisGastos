@@ -136,6 +136,15 @@
             <p class="text-xs text-fg-muted mt-1" id="selected-category">Seleccionada: {{ all_categories|selectattr('id','equalto',auto_category)|map(attribute='name')|first or 'Otros' }}</p>
         </div>
 
+        <!-- Coche (solo para Carburante) -->
+        <div id="vehicle-field" class="hidden">
+            <label class="block text-sm font-semibold">Coche</label>
+            <input type="text" name="vehicle" id="input-vehicle"
+                   value="{{ request.form.get('vehicle', '') }}"
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1"
+                   placeholder="Ej: Seat León, Coche rojo...">
+        </div>
+
         <!-- Items editables -->
         {% if items %}
         <div>
@@ -172,6 +181,7 @@
     <input type="hidden" name="total" id="save-total" value="{{ total or '' }}">
     <input type="hidden" name="payment_method" id="save-payment" value="{{ metodo_pago or '' }}">
     <input type="hidden" name="category" id="save-category" value="{{ auto_category or 9 }}">
+    <input type="hidden" name="vehicle" id="save-vehicle" value="{{ request.form.get('vehicle', '') }}">
     <input type="hidden" name="image_filename" value="{{ image_filename }}">
     <input type="hidden" name="ocr_confidence" value="{{ overall_confidence }}">
     <input type="hidden" name="field_confidence" value='{{ field_confidence | tojson }}'>
@@ -200,6 +210,8 @@
         document.getElementById('save-total').value = e.target.value);
     document.getElementById('input-payment').addEventListener('change', e =>
         document.getElementById('save-payment').value = e.target.value);
+    document.getElementById('input-vehicle').addEventListener('input', e =>
+        document.getElementById('save-vehicle').value = e.target.value);
 
     // Category button grid
     function selectCategory(catId, btn) {
@@ -211,6 +223,16 @@
         btn.classList.add('ring-2', 'ring-accent', 'ring-offset-1', 'scale-105');
         const name = btn.textContent.trim();
         document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
+
+        // Mostrar campo "Coche" solo si es Carburante (11)
+        const vehicleField = document.getElementById('vehicle-field');
+        if (vehicleField) {
+            if (catId === 11) {
+                vehicleField.classList.remove('hidden');
+            } else {
+                vehicleField.classList.add('hidden');
+            }
+        }
     }
 
     function validateForm() {

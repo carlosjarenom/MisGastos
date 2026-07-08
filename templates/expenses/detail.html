@@ -39,6 +39,12 @@
  <span class="text-fg-muted text-xs uppercase tracking-wide block mb-1">Fuente</span>
  <span class="font-medium">{{ txn.source or '-' }}{% if txn.manual_edited %} ✏️{% endif %}</span>
  </div>
+ {% if txn.vehicle %}
+ <div>
+ <span class="text-fg-muted text-xs uppercase tracking-wide block mb-1">Coche</span>
+ <span class="font-medium">{{ txn.vehicle }}</span>
+ </div>
+ {% endif %}
  </div>
 </div>
 

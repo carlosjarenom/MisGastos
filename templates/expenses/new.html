@@ -70,6 +70,14 @@
  </div>
  </div>
 
+ <!-- Coche (solo para Carburante) -->
+ <div id="vehicle-field" class="hidden">
+ <label class="block text-xs font-medium text-fg-muted mb-1">Coche</label>
+ <input type="text" name="vehicle" value="{{ request.form.get('vehicle', '') }}"
+ class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5"
+ placeholder="Ej: Seat León, Coche rojo...">
+ </div>
+
  <div>
  <label class="block text-xs font-medium text-fg-muted mb-1">Método de pago</label>
  <select name="payment_method" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5">
@@ -107,6 +115,16 @@ function selectCategory(catId, btn) {
  document.getElementById('save-category').value = catId;
  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('ring-2', 'ring-accent', 'ring-offset-1'));
  btn.classList.add('ring-2', 'ring-accent', 'ring-offset-1');
+
+ // Mostrar campo "Coche" solo si es Carburante (11)
+ const vehicleField = document.getElementById('vehicle-field');
+ if (vehicleField) {
+ if (catId === 11) {
+ vehicleField.classList.remove('hidden');
+ } else {
+ vehicleField.classList.add('hidden');
+ }
+ }
 }
 
 function addItem() {
