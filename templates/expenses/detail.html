@@ -12,8 +12,8 @@
  <div class="flex items-start justify-between mb-4">
  <div>
  <h2 class="text-lg font-semibold">{{ txn.merchant_name or txn.description or '(sin descripción)' }}</h2>
- {% if txn.merchant_nif %}
- <p class="text-xs text-fg-muted mt-0.5">NIF: {{ txn.merchant_nif }}</p>
+ {% if txn.card_last4 %}
+ <p class="text-xs text-fg-muted mt-0.5">Tarjeta: ****{{ txn.card_last4 }}</p>
  {% endif %}
  </div>
  <span class="text-2xl font-bold">{{ "%.2f"|format(txn.total) }}€</span>

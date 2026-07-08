@@ -42,9 +42,9 @@
  </div>
 
  <div id="nif-field">
- <label class="block text-xs font-medium text-fg-muted mb-1">NIF</label>
- <input type="text" name="nif" value="{{ request.form.get('nif', '') }}"
- class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5" placeholder="Opcional">
+ <label class="block text-xs font-medium text-fg-muted mb-1">Tarjeta (últimos 4 dígitos)</label>
+ <input type="text" name="card_last4" value="{{ request.form.get('card_last4', '') }}"
+ class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5" placeholder="Ej: 6133" maxlength="4">
  </div>
 
  <div>

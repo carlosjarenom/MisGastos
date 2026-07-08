@@ -49,6 +49,7 @@ def init_db():
         field_confidence TEXT,
         scan_model TEXT,
         scan_duration_ms INTEGER,
+        card_last4 TEXT,
         manual_edited INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -125,6 +126,12 @@ def init_db():
     columns = [row[1] for row in c.fetchall()]
     if 'image_path' not in columns:
         c.execute("ALTER TABLE scans ADD COLUMN image_path TEXT")
+
+    # Migración: añadir columna card_last4 a transactions si no existe
+    c.execute("PRAGMA table_info(transactions)")
+    columns = [row[1] for row in c.fetchall()]
+    if 'card_last4' not in columns:
+        c.execute("ALTER TABLE transactions ADD COLUMN card_last4 TEXT")
 
     # Insertar categorías canónicas si no existen
     for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:

@@ -84,12 +84,12 @@
                    class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1" id="input-merchant">
         </div>
 
-        <!-- NIF -->
-        {% if nif %}
+        <!-- Tarjeta (últimos 4 dígitos) -->
+        {% if card_last4 %}
         <div>
-            <label class="block text-sm font-semibold text-fg-muted">NIF detectado</label>
-            <input type="text" value="{{ nif }}"
-                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 bg-gray-50 dark:bg-darkcanvas-subtle" id="input-nif">
+            <label class="block text-sm font-semibold text-fg-muted">Tarjeta detectada</label>
+            <input type="text" value="{{ card_last4 }}"
+                   class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-2 py-1 bg-gray-50 dark:bg-darkcanvas-subtle" id="input-nif" maxlength="4" placeholder="Últimos 4 dígitos">
         </div>
         {% endif %}
 
@@ -168,7 +168,7 @@
     <input type="hidden" name="scan_id" value="{{ scan_id }}">
     <input type="hidden" name="date" id="save-date" value="{{ fecha }}">
     <input type="hidden" name="merchant" id="save-merchant" value="{{ comercio or '' }}">
-    <input type="hidden" name="nif" id="save-nif" value="{{ nif or '' }}">
+    <input type="hidden" name="card_last4" id="save-nif" value="{{ card_last4 or '' }}">
     <input type="hidden" name="total" id="save-total" value="{{ total or '' }}">
     <input type="hidden" name="payment_method" id="save-payment" value="{{ metodo_pago or '' }}">
     <input type="hidden" name="category" id="save-category" value="{{ auto_category or 9 }}">

@@ -18,8 +18,8 @@
  <input type="text" name="merchant" value="{{ txn.merchant_name or '' }}" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5">
  </div>
  <div>
- <label class="block text-xs font-medium text-fg-muted mb-1">NIF</label>
- <input type="text" name="nif" value="{{ txn.merchant_nif or '' }}" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5">
+ <label class="block text-xs font-medium text-fg-muted mb-1">Tarjeta (últimos 4 dígitos)</label>
+ <input type="text" name="card_last4" value="{{ txn.card_last4 or '' }}" class="w-full border border-gray-300 dark:border-gray-600 dark:bg-darkcanvas dark:text-darkfg rounded px-3 py-1.5" maxlength="4" placeholder="Ej: 6133">
  </div>
  <div>
  <label class="block text-xs font-medium text-fg-muted mb-1">Total (€)</label>

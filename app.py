@@ -301,7 +301,7 @@ def scan_upload():
         image_filename=original_filename,
         fecha=result.fecha,
         comercio=result.comercio,
-        nif=result.nif,
+        card_last4=result.card_last4,
         items=result.items,
         total=result.total,
         metodo_pago=result.metodo_pago,
@@ -332,7 +332,7 @@ def scan_save():
         "scan_id": request.form.get("scan_id"),
         "date": request.form.get("date"),
         "merchant": request.form.get("merchant", "").strip(),
-        "nif": request.form.get("nif", "").strip() or None,
+        "card_last4": request.form.get("card_last4", "").strip() or None,
         "total": total,
         "category_id": category_id,
         "payment_method": request.form.get("payment_method", ""),
@@ -375,56 +375,27 @@ def scan_save():
     # Buscar o crear merchant (N4: no crear merchant fantasma si name="")
     merchant_id = None
     if data["merchant"]:
-        # Q2: Si hay NIF, buscar primero por NIF para evitar duplicados
-        if data["nif"]:
-            c.execute("SELECT id FROM merchants WHERE nif = ?", (data["nif"],))
-            nif_row = c.fetchone()
-            if nif_row:
-                # NIF ya existe → reusar merchant
-                merchant_id = nif_row['id']
-        
-        if merchant_id is None:
-            c.execute("SELECT id, nif FROM merchants WHERE name = ?", (data["merchant"],))
-            row = c.fetchone()
-            if row:
-                merchant_id = row['id']
-                # Actualizar NIF si era null y ahora hay uno
-                if data["nif"] and (row['nif'] is None or row['nif'] == ""):
-                    c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (data["nif"], merchant_id))
-            else:
-                # Q2: Intentar INSERT, si NIF duplicado capturar
-                try:
-                    c.execute(
-                        "INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
-                        (data["merchant"], data["nif"], data["category_id"])
-                    )
-                    merchant_id = c.lastrowid
-                except sqlite3.IntegrityError:
-                    # NIF duplicado tras la comprobación → buscar por NIF
-                    c.execute("SELECT id FROM merchants WHERE nif = ?", (data["nif"],))
-                    nif_row = c.fetchone()
-                    if nif_row:
-                        merchant_id = nif_row['id']
-        
-        # O10: Log de corrección de NIF se mueve a después de crear la transacción
-        nif_correction = None
-        if merchant_id:
-            c.execute("SELECT nif FROM merchants WHERE id = ?", (merchant_id,))
-            m_row = c.fetchone()
-            if m_row and data["nif"]:
-                orig_nif = original_values.get("nif")
-                if orig_nif and orig_nif != data["nif"]:
-                    nif_correction = (orig_nif, data["nif"])
+        c.execute("SELECT id FROM merchants WHERE name = ?", (data["merchant"],))
+        row = c.fetchone()
+        if row:
+            merchant_id = row['id']
+        else:
+            c.execute(
+                "INSERT INTO merchants (name, default_category_id) VALUES (?, ?)",
+                (data["merchant"], data["category_id"])
+            )
+            merchant_id = c.lastrowid
 
     # Insertar transacción
     c.execute("""
-        INSERT INTO transactions (kind, date, merchant_id, total, payment_method, category_id, source, ocr_confidence, field_confidence)
-        VALUES ('expense', ?, ?, ?, ?, ?, 'ocr', ?, ?)
+        INSERT INTO transactions (kind, date, merchant_id, total, payment_method, category_id, source, ocr_confidence, field_confidence, card_last4)
+        VALUES ('expense', ?, ?, ?, ?, ?, 'ocr', ?, ?, ?)
     """, (
         data["date"], merchant_id, data["total"],
         data["payment_method"] if data["payment_method"] else None,
         data["category_id"],
-        ocr_confidence, field_confidence_json
+        ocr_confidence, field_confidence_json,
+        data["card_last4"]
     ))
     txn_id = c.lastrowid
 
@@ -484,13 +455,6 @@ def scan_save():
                 INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
                 VALUES (?, 'items_total_mismatch', ?, ?)
             """, (txn_id, str(items_sum), str(data["total"])))
-
-    # O10: Aplicar corrección de NIF (ahora sí tenemos txn_id)
-    if nif_correction:
-        c.execute("""
-            INSERT INTO corrections (transaction_id, field, original_value, corrected_value)
-            VALUES (?, 'nif', ?, ?)
-        """, (txn_id, nif_correction[0], nif_correction[1]))
 
     # Log correcciones de campos editados
     _log_corrections(c, txn_id, original_values, data)
@@ -575,7 +539,7 @@ def expense_detail(txn_id):
     c = conn.cursor()
 
     c.execute("""
-        SELECT t.*, c.name as category_name, c.color as category_color, m.name as merchant_name, m.nif as merchant_nif
+        SELECT t.*, c.name as category_name, c.color as category_color, m.name as merchant_name
         FROM transactions t
         LEFT JOIN categories c ON t.category_id = c.id
         LEFT JOIN merchants m ON t.merchant_id = m.id
@@ -617,7 +581,7 @@ def edit_expense(txn_id):
     c = conn.cursor()
 
     c.execute("""
-        SELECT t.*, m.name as merchant_name, m.nif as merchant_nif
+        SELECT t.*, m.name as merchant_name
         FROM transactions t
         LEFT JOIN merchants m ON t.merchant_id = m.id
         WHERE t.id = ?
@@ -638,7 +602,7 @@ def edit_expense(txn_id):
         new_category = int(request.form.get("category", txn['category_id']))
         new_merchant = request.form.get("merchant", txn['merchant_name']).strip()
         new_payment = request.form.get("payment_method", txn['payment_method']) or None
-        new_nif = request.form.get("nif", txn['merchant_nif'] or "")
+        new_card_last4 = request.form.get("card_last4", txn['card_last4'] or "")
 
         # Q3: Validar categoría
         c.execute("SELECT id FROM categories WHERE id = ?", (new_category,))
@@ -659,32 +623,20 @@ def edit_expense(txn_id):
         mrow = c.fetchone()
         if new_merchant:
             if mrow:
-                # Si el merchant encontrado es distinto al actual, reasignar
                 if mrow['id'] != txn['merchant_id']:
                     c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (mrow['id'], txn_id))
-                if new_nif and not txn['merchant_nif']:
-                    c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (new_nif, mrow['id']))
             else:
-                # Q2: Intentar INSERT, capturar NIF duplicado
-                try:
-                    c.execute("INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)", (new_merchant, new_nif or None, new_category))
-                    new_merchant_id = c.lastrowid
-                except sqlite3.IntegrityError:
-                    # NIF duplicado → reusar merchant existente
-                    c.execute("SELECT id FROM merchants WHERE nif = ?", (new_nif,))
-                    dup_row = c.fetchone()
-                    new_merchant_id = dup_row['id'] if dup_row else None
-                if new_merchant_id:
-                    c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (new_merchant_id, txn_id))
+                c.execute("INSERT INTO merchants (name, default_category_id) VALUES (?, ?)", (new_merchant, new_category))
+                new_merchant_id = c.lastrowid
+                c.execute("UPDATE transactions SET merchant_id = ? WHERE id = ?", (new_merchant_id, txn_id))
         else:
-            # Merchant vacío → no crear fantasma, poner NULL
             c.execute("UPDATE transactions SET merchant_id = NULL WHERE id = ?", (txn_id,))
 
         # Actualizar transacción
         c.execute("""
-            UPDATE transactions SET date = ?, total = ?, category_id = ?, payment_method = ?
+            UPDATE transactions SET date = ?, total = ?, category_id = ?, payment_method = ?, card_last4 = ?
             WHERE id = ?
-        """, (new_date, new_total, new_category, new_payment, txn_id))
+        """, (new_date, new_total, new_category, new_payment, new_card_last4 or None, txn_id))
 
         # Marcar como editado
         c.execute("UPDATE transactions SET manual_edited = 1 WHERE id = ? AND manual_edited = 0", (txn_id,))
@@ -834,7 +786,7 @@ def edit_pending_scan(scan_id):
         image_filename=scan['image_path'] if scan['image_path'] else None,
         fecha=data.get("fecha"),
         comercio=data.get("comercio"),
-        nif=data.get("nif"),
+        card_last4=data.get("card_last4"),
         items=items,
         total=data.get("total"),
         metodo_pago=data.get("metodo_pago"),
@@ -1076,7 +1028,7 @@ def new_expense_manual():
 
         date_val = request.form.get("date", "")
         merchant = request.form.get("merchant", "").strip()
-        nif = request.form.get("nif", "").strip() or None
+        card_last4 = request.form.get("card_last4", "").strip() or None
         payment_method = request.form.get("payment_method", "")
         description = request.form.get("description", "").strip()
         kind = request.form.get("kind", "expense")
@@ -1092,36 +1044,22 @@ def new_expense_manual():
 
         merchant_id = None
         if merchant:
-            if nif:
-                c.execute("SELECT id FROM merchants WHERE nif = ?", (nif,))
-                nif_row = c.fetchone()
-                if nif_row:
-                    merchant_id = nif_row['id']
-
-            if merchant_id is None:
-                c.execute("SELECT id, nif FROM merchants WHERE name = ?", (merchant,))
-                row = c.fetchone()
-                if row:
-                    merchant_id = row['id']
-                    if nif and (row['nif'] is None or row['nif'] == ""):
-                        c.execute("UPDATE merchants SET nif = ? WHERE id = ?", (nif, merchant_id))
-                else:
-                    try:
-                        c.execute(
-                            "INSERT INTO merchants (name, nif, default_category_id) VALUES (?, ?, ?)",
-                            (merchant, nif, category_id)
-                        )
-                        merchant_id = c.lastrowid
-                    except sqlite3.IntegrityError:
-                        c.execute("SELECT id FROM merchants WHERE nif = ?", (nif,))
-                        nif_row = c.fetchone()
-                        merchant_id = nif_row['id'] if nif_row else None
+            c.execute("SELECT id FROM merchants WHERE name = ?", (merchant,))
+            row = c.fetchone()
+            if row:
+                merchant_id = row['id']
+            else:
+                c.execute(
+                    "INSERT INTO merchants (name, default_category_id) VALUES (?, ?)",
+                    (merchant, category_id)
+                )
+                merchant_id = c.lastrowid
 
         c.execute("""
-            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')
+            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source, card_last4)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'manual', ?)
         """, (kind, date_val, description or None, merchant_id, total,
-              payment_method if payment_method else None, category_id))
+              payment_method if payment_method else None, category_id, card_last4))
         txn_id = c.lastrowid
 
         item_descs = request.form.getlist("item_desc[]")
@@ -1277,7 +1215,7 @@ def _log_corrections(c, txn_id, original_values, data):
         "merchant": "comercio",
         "total": "total",
         "payment_method": "metodo_pago",
-        "nif": "nif",
+        "card_last4": "card_last4",
     }
 
     for db_field, ocr_key in field_map.items():

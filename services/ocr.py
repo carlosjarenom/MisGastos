@@ -25,7 +25,8 @@ Reglas críticas:
  interpreta como 2026-07-06 (siglo XXI).
 2. Números: usa punto como separador decimal (1234.56), nunca coma ni
  separador de miles. "1.234,56" → 1234.56
-3. NIF español: formato letra+8 dígitos (A12345678). Si no aparece,
+3. Tarjeta: extrae los últimos 4 dígitos del número de tarjeta que aparezca
+ en el ticket (ej: ****6133 → "6133"). Si el método es efectivo o no aparece,
  usa null.
 4. metodo_pago debe ser uno de: "Efectivo", "Tarjeta", "Bizum",
  "Transferencia", o null si no se puede leer. NUNCA uses "desconocido".
@@ -61,14 +62,14 @@ Esquema esperado:
  "field_confidence": {
  "fecha": float,
  "comercio": float,
- "nif": float,
+ "card_last4": float,
  "items": float,
  "total": float,
  "metodo_pago": float
  },
  "fecha": "YYYY-MM-DD" | null,
  "comercio": "string" | null,
- "nif": "string" | null,
+ "card_last4": "string (últimos 4 dígitos de la tarjeta, ej: 6133) o null si es efectivo" | null,
  "items": [
  {"descripcion": "string", "cantidad": float, "precio": float}
  ],
@@ -115,7 +116,7 @@ Devuelve SOLO el JSON. Nada más."""
 class OCRResult:
     fecha: str | None
     comercio: str | None
-    nif: str | None
+    card_last4: str | None
     items: list[dict]
     total: float | None
     metodo_pago: str | None
@@ -241,7 +242,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
             raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis)
         except Exception as e2:
             return OCRResult(
-                fecha=None, comercio=None, nif=None, items=[], total=None,
+                fecha=None, comercio=None, card_last4=None, items=[], total=None,
                 metodo_pago=None, overall_confidence=0.0,
                 field_confidence={}, model="qwen3.5-9b",
                 raw_output="", duration_ms=duration_ms,
@@ -254,7 +255,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
         # Si el error contiene "Invalid url value", es el bug de llama.cpp
         if "Invalid url value" in error_msg:
             return OCRResult(
-                fecha=None, comercio=None, nif=None, items=[], total=None,
+                fecha=None, comercio=None, card_last4=None, items=[], total=None,
                 metodo_pago=None, overall_confidence=0.0,
                 field_confidence={}, model="qwen3.5-9b",
                 raw_output="", duration_ms=duration_ms,
@@ -263,7 +264,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
                 f"Verifica versión de llama.cpp (necesita soporte vision)."
             )
         return OCRResult(
-            fecha=None, comercio=None, nif=None, items=[], total=None,
+            fecha=None, comercio=None, card_last4=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5-9b",
             raw_output="", duration_ms=duration_ms,
@@ -287,7 +288,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
         else:
             error_msg = f"json_parse_error | VLM response (first 500 chars): {raw_preview}"
         return OCRResult(
-            fecha=None, comercio=None, nif=None, items=[], total=None,
+            fecha=None, comercio=None, card_last4=None, items=[], total=None,
             metodo_pago=None, overall_confidence=0.0,
             field_confidence={}, model="qwen3.5-9b",
             raw_output=raw, duration_ms=duration_ms,
@@ -297,7 +298,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True) -> OCRResult:
     return OCRResult(
         fecha=data.get("fecha"),
         comercio=data.get("comercio"),
-        nif=data.get("nif"),
+        card_last4=data.get("card_last4"),
         items=data.get("items", []),
         total=data.get("total"),
         metodo_pago=data.get("metodo_pago"),
