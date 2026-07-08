@@ -2,18 +2,47 @@
 services/classifier.py — Clasificación en cascada
 """
 from collections import defaultdict
+import unicodedata
+
+# Comercios que SIEMPRE son de una categoría concreta
+MERCHANT_CATEGORY_OVERRIDES = {
+    # Comida (1)
+    "mercadona": 1, "carrefour": 1, "consum": 1, "lidl": 1, "aldi": 1,
+    "dia": 1, "alcampo": 1, "supermercado": 1, "bonpreu": 1,
+    # Ropa (2)
+    "el corte ingles": 2, "hipercor": 2, "zara": 2, "mango": 2,
+    "decathlon": 2, "pull and bear": 2, "stradivarius": 2,
+    "new look": 2, "bershka": 2, "massimo dutti": 2, "hm": 2,
+    # Farmacia (3)
+    "farmacia": 3, "droguería": 3, "drogueria": 3,
+    "mercadona farmacia": 3, "carrefour salud": 3,
+    # Carburante (4)
+    "repsol": 4, "cepsa": 4, "bp": 4, "shell": 4, "galp": 4,
+    "gas express": 4, "es gasexpress": 4, "gasexpress": 4, "total": 4,
+    # Banco (5)
+    "cashzone": 5, "santander": 5, "bbva": 5, "caixabank": 5,
+    "sabadell": 5, "ibercaja": 5, "kutxabank": 5,
+    # Otros (6) — lo que antes era Servicios/Limpieza y Hogar
+    "iberdrola": 6, "endesa": 6, "naturgy": 6,
+    "leroy merlin": 6, "ikea": 6,
+    "vodafone": 6, "movistar": 6, "orange": 6,
+    "lycamobile": 6, "masmovil": 6,
+}
+
 
 def clasificar_por_comercio_override(comercio: str) -> int | None:
- """Comercios que siempre son de una categoría concreta.
- Returns: category_id or None
- """
- if not comercio:
-  return None
- name_lower = comercio.lower().strip()
- for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
-  if merchant_name in name_lower:
-   return cat_id
- return None
+    """Comercios que siempre son de una categoría concreta.
+    Returns: category_id or None
+    """
+    if not comercio:
+        return None
+    # Normalizar: minúsculas y quitar tildes para matching robusto
+    name_lower = comercio.lower().strip()
+    name_normalized = unicodedata.normalize('NFD', name_lower).encode('ascii', 'ignore').decode('ascii')
+    for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
+        if merchant_name in name_normalized:
+            return cat_id
+    return None
 
 # Keywords con peso por categoría
 KEYWORDS = {
@@ -27,104 +56,25 @@ KEYWORDS = {
         "cereales": 0.9, "agua mineral": 0.6, "refresco": 0.6,
         "cerveza": 0.6, "vino": 0.7, "coca cola": 0.6,
     },
-    "Farmacia y Salud": {
+    "Farmacia": {
         "ibuprofeno": 1.0, "paracetamol": 1.0, "vitamina": 1.0,
         "antibiotico": 1.0, "antibiótico": 1.0, "jarabe": 0.8,
-        "crema": 0.5, "protector solar": 0.6, "analgésico": 1.0,
-        "analogesico": 1.0, "suero": 0.7, "gasas": 0.9,
+        "analgésico": 1.0, "analogesico": 1.0, "suero": 0.7, "gasas": 0.9,
     },
-    "Limpieza y Hogar": {
-        "detergente": 1.0, "lejía": 1.0, "lechia": 1.0, "limpiador": 1.0,
-        "lavavajillas": 1.0, "suavizante": 1.0, "desengrasante": 1.0,
-        "bayeta": 1.0, "cepillo": 0.6, "esponja": 0.6,
-        "bolsa basura": 1.0, "papel aluminio": 0.7,
-    },
-    "Cuidado personal": {
-        "champú": 1.0, "champu": 1.0, "gel ducha": 1.0,
-        "pasta dientes": 1.0, "cepillo dental": 1.0,
-        "papel higiénico": 1.0, "papel higienico": 1.0,
-        "compresas": 1.0, "pañales": 1.0, "pañal": 1.0,
-        "desodorante": 1.0, "crema hidratante": 0.8,
-    },
-    "Transporte": {
+    "Carburante": {
         "gasolina": 1.0, "diésel": 1.0, "diesel": 1.0,
-        "parking": 1.0, "peaje": 1.0, "bus": 1.0, "metro": 1.0,
-        "tren": 1.0, "avión": 1.0, "avion": 1.0,
-        "taxis": 0.8, "uber": 0.9, "cabify": 0.9,
+        "gasoleo": 1.0, "combustible": 1.0,
     },
-    "Educación": {
-        "academia": 1.0, "libro": 0.7, "cuaderno": 0.8,
-        "bolígrafo": 0.7, "material escolar": 1.0,
-        "curso": 0.8, "formación": 0.8,
-    },
-    "Ocio": {
-        "cine": 1.0, "restaurante": 0.5, "bar": 0.6,
-        "juego": 0.7, "videojuego": 0.8, "spotify": 0.9,
-        "netflix": 0.9, "amazon prime": 0.9,
-    },
-    "Servicios": {
-        "luz": 1.0, "agua": 0.8, "electricidad": 1.0,
-        "internet": 1.0, "móvil": 0.8, "movil": 0.8,
-        "teléfono": 0.8, "telefono": 0.8, "seguro": 0.9,
-        "fibra": 1.0, "vodafone": 0.9, "orange": 0.8,
-        "movistar": 0.9, "lyca": 0.7, "masmovil": 0.7,
+    "Banco": {
+        "cajero": 1.0, "retirada": 1.0, "transferencia": 1.0,
+        "comisión": 0.8, "banco": 1.0, "ingreso": 0.8,
     },
 }
 
 # Mapeo nombre → categoría ID
 CATEGORY_MAP = {
-    "Comida": 1, "Farmacia y Salud": 2, "Limpieza y Hogar": 3,
-    "Transporte": 4, "Cuidado personal": 5, "Educación": 6,
-    "Ocio": 7, "Servicios": 8, "Otros": 9, "Mixto": 10,
-    "Ropa": 15, "Banco": 16,
-}
-
-# Comercios que siempre son de una categoría concreta (claves en minúsculas sin tildes)
-MERCHANT_CATEGORY_OVERRIDES = {
-    "mercadona": 1,
-    "carrefour": 1,
-    "lidl": 1,
-    "aldi": 1,
-    "supermercado": 1,
-    "bonpreu": 1,
-    "consum": 1,
-    "conadis": 1,
-    "dia": 1,
-    "supercor": 1,
-    "pulido": 1,
-    "farmacia": 2,
-    "droguería": 2,
-    "drogueria": 2,
-    "mercadona farmacia": 2,
-    "carrefour salud": 2,
-    "decathlon": 7,  # Ocio (deportes)
-    "el corte ingles": 15,  # Ropa
-    "hipercor": 15,  # Ropa
-    "zara": 7,
-    "mango": 7,
-    "pull and bear": 7,
-    "stradivarius": 7,
-    "new look": 7,
-    "bershka": 7,
-    "massimo dutti": 7,
-    "hm": 7,
-    "repsol": 11,
-    "cepsa": 11,
-    "galp": 11,
-    "total": 11,
-    "shell": 11,
-    "bp": 11,
-    "es gasexpress": 11,  # Carburante
-    "gasexpress": 11,  # Carburante
-    "gas express": 11,  # Carburante
-    "iberdrola": 8,
-    "endesa": 8,
-    "naturgy": 8,
-    "vodafone": 8,
-    "movistar": 8,
-    "orange": 8,
-    "lycamobile": 8,
-    "masmovil": 8,
+    "Comida": 1, "Ropa": 2, "Farmacia": 3,
+    "Carburante": 4, "Banco": 5, "Otros": 6,
 }
 
 
@@ -154,7 +104,7 @@ def clasificar_por_items(items: list[dict]) -> tuple[int, float]:
     ratio = scores[cat_dominante] / total_amount
 
     if ratio < 0.5:
-        return (CATEGORY_MAP["Mixto"], ratio)
+        return (CATEGORY_MAP["Otros"], ratio)
 
     return (CATEGORY_MAP[cat_dominante], ratio)
 
@@ -180,20 +130,4 @@ def clasificar_por_comercio(merchant_name: str, merchant_db=None) -> int | None:
                     if name_lower in alias.lower():
                         return merchant["category_id"]
 
-    return None
-
-
-def clasificar_por_comercio_override(comercio: str) -> int | None:
-    """Comercios que siempre son de una categoría concreta.
-    Returns: category_id or None
-    """
-    if not comercio:
-        return None
-    # Normalizar: minúsculas y quitar tildes para matching robusto
-    import unicodedata
-    name_lower = comercio.lower().strip()
-    name_normalized = unicodedata.normalize('NFD', name_lower).encode('ascii', 'ignore').decode('ascii')
-    for merchant_name, cat_id in MERCHANT_CATEGORY_OVERRIDES.items():
-        if merchant_name in name_normalized:
-            return cat_id
     return None

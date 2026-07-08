@@ -264,7 +264,7 @@ def scan_upload():
             auto_cat_id = row['default_category_id']
 
     if auto_cat_id is None:
-        auto_cat_id = 9  # Otros
+        auto_cat_id = 6  # Otros
 
     # Guardar en scans
     conn = get_db()
@@ -763,7 +763,7 @@ def edit_pending_scan(scan_id):
             auto_cat_id = mrow['default_category_id']
 
     if auto_cat_id is None:
-        auto_cat_id = 9  # Otros
+        auto_cat_id = 6  # Otros
 
     # Todas las categorías disponibles
     all_categories = []
@@ -876,7 +876,7 @@ def rotate_scan(scan_id, degrees):
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
     if auto_cat_id is None:
-        auto_cat_id = 9
+        auto_cat_id = 6
 
     conn = get_db()
     c = conn.cursor()
@@ -944,7 +944,7 @@ def enhance_scan(scan_id):
         if row and row['default_category_id']:
             auto_cat_id = row['default_category_id']
     if auto_cat_id is None:
-        auto_cat_id = 9
+        auto_cat_id = 6
 
     conn = get_db()
     c = conn.cursor()
