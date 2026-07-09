@@ -24,14 +24,24 @@ UPLOAD_DIR = os.path.join(DATA_DIR, "uploads")
 MAX_IMAGE_DIM = 1024  # Redimensionar a max 1024px lado largo
 
 # --- Categorías ---
+# Formato: (id, name, parent_id, color)
 CATEGORIES = [
-    (1, "Comida", None, "#22c55e"),      # Verde
-    (2, "Ropa", None, "#ec4899"),       # Rosa
-    (3, "Farmacia", None, "#3b82f6"),   # Azul
-    (4, "Carburante", None, "#f97316"), # Naranja
-    (5, "Banco", None, "#0f766e"),      # Verde oscuro/teal
-    (6, "Otros", None, "#6b7280"),      # Gris
+    (1, "Comida", None, "#10b981"),
+    (2, "Farmacia y Salud", None, "#3b82f6"),
+    (3, "Limpieza y Hogar", None, "#f59e0b"),
+    (4, "Transporte", None, "#8b5cf6"),
+    (5, "Cuidado personal", None, "#ec4899"),
+    (6, "Educación", None, "#06b6d4"),
+    (7, "Ocio", None, "#ef4444"),
+    (8, "Servicios", None, "#6b7280"),
+    (9, "Otros", None, "#9ca3af"),
+    (10, "Mixto", None, "#fbbf24"),
 ]
 
-# Sin subcategorías
-TRANSPORT_SUBCATEGORIES = []
+# Subcategorías de Transporte
+TRANSPORT_SUBCATEGORIES = [
+    (11, "Gasolina", 4, "#f97316"),
+    (12, "Diésel", 4, "#4b5563"),
+    (13, "Parking", 4, "#6366f1"),
+    (14, "Peaje", 4, "#14b8a6"),
+]
