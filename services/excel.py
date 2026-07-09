@@ -165,7 +165,7 @@ def export_month_excel(year: str, month: str) -> str:
             row['category'] or '',
             float(row['total']) if row['total'] else 0,
             row['payment_method'] or '',
-            f"****{row['card_last4']}" if row.get('card_last4') else '',
+            f"****{row['card_last4']}" if row['card_last4'] else '',
             row['vehicle'] or ''
         ]
         for col, value in enumerate(values, 1):
