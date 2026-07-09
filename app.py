@@ -329,6 +329,150 @@ def scan_upload():
     )
 
 
+@app.route("/scan/upload-batch", methods=["POST"])
+def scan_upload_batch():
+    """Procesar múltiples tickets a la vez, guardándolos automáticamente."""
+    if "images" not in request.files:
+        return "No se recibieron imágenes", 400
+
+    files = request.files.getlist("images")
+    if not files or files[0].filename == "":
+        return "No se seleccionaron archivos", 400
+
+    deep = is_deep_analysis_enabled()
+    thinking = is_thinking_enabled()
+
+    all_categories = []
+    from config import CATEGORIES
+    for cat in CATEGORIES:
+        all_categories.append({'id': cat[0], 'name': cat[1], 'color': cat[3]})
+
+    results = []
+
+    for i, f in enumerate(files):
+        if not f or f.filename == "":
+            continue
+
+        # Guardar imagen
+        ext = os.path.splitext(f.filename)[1] or ".jpg"
+        original_filename = f"{uuid.uuid4()}{ext}"
+        original_path = os.path.join(UPLOAD_DIR, original_filename)
+        f.save(original_path)
+
+        # Procesar OCR
+        try:
+            result = extract_ticket(original_path, deep_analysis=deep, enable_thinking=thinking)
+        except Exception as e:
+            results.append({
+                'file': f.filename,
+                'status': 'error',
+                'error': str(e)[:200],
+            })
+            continue
+
+        # Clasificar
+        auto_cat_id = None
+        if result.categoria_sugerida:
+            auto_cat_id = CATEGORY_NAME_TO_ID.get(result.categoria_sugerida.strip())
+        if auto_cat_id is None and result.comercio:
+            auto_cat_id = clasificar_por_comercio_override(result.comercio)
+        if auto_cat_id is None and result.comercio:
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("SELECT default_category_id FROM merchants WHERE name LIKE ?", (f"%{result.comercio}%",))
+            row = c.fetchone()
+            conn.close()
+            if row and row['default_category_id']:
+                auto_cat_id = row['default_category_id']
+        if auto_cat_id is None and result.items:
+            auto_cat_id, _ = clasificar_por_items(result.items)
+        if auto_cat_id is None:
+            auto_cat_id = 6  # Otros
+
+        # Guardar en DB automáticamente (sin revisión)
+        conn = get_db()
+        c = conn.cursor()
+
+        # Crear merchant
+        merchant_id = None
+        if result.comercio:
+            c.execute("SELECT id FROM merchants WHERE name = ?", (result.comercio,))
+            mrow = c.fetchone()
+            if mrow:
+                merchant_id = mrow['id']
+            else:
+                try:
+                    c.execute("INSERT INTO merchants (name, default_category_id) VALUES (?, ?)",
+                              (result.comercio, auto_cat_id))
+                    merchant_id = c.lastrowid
+                except sqlite3.IntegrityError:
+                    merchant_id = None
+
+        # Insertar transacción
+        c.execute("""
+            INSERT INTO transactions (kind, date, description, merchant_id, total, payment_method, category_id, source, ocr_confidence, field_confidence, card_last4, vehicle)
+            VALUES ('expense', ?, ?, ?, ?, ?, ?, 'ocr', ?, ?, ?, ?)
+        """, (
+            result.fecha or date.today().isoformat(),
+            result.comercio or '',
+            merchant_id,
+            result.total or 0,
+            result.metodo_pago,
+            auto_cat_id,
+            result.overall_confidence,
+            json.dumps(result.field_confidence),
+            result.card_last4,
+            None,
+        ))
+        txn_id = c.lastrowid
+
+        # Guardar scan
+        c.execute("""
+            INSERT INTO scans (model, raw_output, confidence, duration_ms, status, transaction_id, image_path)
+            VALUES (?, ?, ?, ?, 'saved', ?, ?)
+        """, ("qwen3.5-9b", result.raw_output, result.overall_confidence, result.duration_ms, txn_id, original_filename))
+
+        # Guardar items si deep analysis
+        if deep and result.items:
+            for item in result.items:
+                desc = item.get("descripcion", "").strip()
+                try:
+                    price = float(item.get("precio", 0))
+                except (ValueError, TypeError):
+                    price = 0
+                try:
+                    qty = float(item.get("cantidad", 1))
+                except (ValueError, TypeError):
+                    qty = 1.0
+                if desc and price > 0:
+                    c.execute("""
+                        INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (txn_id, desc, qty, price, auto_cat_id))
+                    c.execute("""
+                        INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (desc, price, result.fecha or date.today().isoformat(), txn_id, merchant_id))
+
+        conn.commit()
+        conn.close()
+
+        # Encontrar nombre de categoría
+        cat_name = next((c['name'] for c in all_categories if c['id'] == auto_cat_id), 'Otros')
+
+        results.append({
+            'file': f.filename,
+            'status': 'saved',
+            'comercio': result.comercio or '(desconocido)',
+            'total': result.total or 0,
+            'categoria': cat_name,
+            'confidence': result.overall_confidence,
+            'txn_id': txn_id,
+        })
+
+    return render_template("scan/batch_result.html", results=results, review_queue_count=0)
+
+
 @app.route("/scan/save", methods=["POST"])
 def scan_save():
     """Guardar ticket confirmado (desde OCR o edición)."""

@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Cola de procesamiento — MisGastos{% endblock %}
+{% block content %}
+
+<h1 class="text-xl font-semibold mb-6">📋 Cola de procesamiento</h1>
+
+<div class="space-y-3 max-w-2xl">
+ {% for r in results %}
+ <div class="flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-darkcanvas-subtle">
+ <div class="flex items-center gap-3">
+ {% if r.status == 'saved' %}
+ <span class="text-green-600 text-xl">✅</span>
+ {% else %}
+ <span class="text-red-600 text-xl">❌</span>
+ {% endif %}
+ <div>
+ <p class="font-medium text-sm">{{ r.file }}</p>
+ {% if r.status == 'saved' %}
+ <p class="text-xs text-fg-muted">
+ {{ r.comercio }} · {{ "%.2f"|format(r.total) }}€ · {{ r.categoria }} · Confianza: {{ "%.0f"|format(r.confidence * 100) }}%
+ </p>
+ {% else %}
+ <p class="text-xs text-red-600">{{ r.error }}</p>
+ {% endif %}
+ </div>
+ </div>
+ {% if r.status == 'saved' %}
+ <a href="/expense/{{ r.txn_id }}" class="text-accent text-xs hover:underline">Ver →</a>
+ {% endif %}
+ </div>
+ {% endfor %}
+</div>
+
+<div class="mt-6 flex gap-3">
+ <a href="/scan" class="px-4 py-2 bg-accent text-white rounded font-medium hover:bg-accent-emphasis">
+ 📷 Procesar más tickets
+ </a>
+ <a href="/expenses" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded font-medium hover:bg-canvas-subtle dark:hover:bg-darkcanvas">
+ 📁 Ver archivos
+ </a>
+</div>
+
+{% endblock %}

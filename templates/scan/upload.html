@@ -5,6 +5,18 @@
 <div class="max-w-2xl mx-auto">
  <h1 class="text-xl font-semibold mb-4">📷 Subir ticket</h1>
 
+ <!-- Modo de procesamiento -->
+<div class="flex justify-center gap-4 mb-6">
+ <label class="flex items-center gap-2 cursor-pointer">
+ <input type="radio" name="mode" value="single" checked onchange="toggleMode('single')" class="sr-only peer">
+ <span class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent text-sm font-medium">📷 Individual</span>
+ </label>
+ <label class="flex items-center gap-2 cursor-pointer">
+ <input type="radio" name="mode" value="multiple" onchange="toggleMode('multiple')" class="sr-only peer">
+ <span class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 peer-checked:bg-accent peer-checked:text-white peer-checked:border-accent text-sm font-medium">📂 Múltiple</span>
+ </label>
+</div>
+
  {% if error %}
  <div class="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-400 dark:border-red-600 p-4 mb-6">
  <p class="font-bold text-red-800 dark:text-red-400">❌ No se pudo procesar la imagen</p>
@@ -73,6 +85,40 @@
  </div>
 
  <div id="result" class="mt-6"></div>
+
+ <!-- Upload múltiple (oculto por defecto) -->
+<div id="multiple-upload" class="hidden">
+ <form id="multi-form" hx-post="/scan/upload-batch"
+ hx-encoding="multipart/form-data"
+ hx-target="#batch-result"
+ hx-swap="innerHTML"
+ hx-indicator="#batch-loading">
+ <input type="file" name="images" accept="image/*" multiple
+ class="hidden" id="multi-file-input">
+ <button type="button"
+ onclick="document.getElementById('multi-file-input').click()"
+ class="bg-blue-600 dark:bg-accent hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold">
+ 📂 Seleccionar imágenes
+ </button>
+ <p class="mt-3 text-gray-500 dark:text-darkfg-muted text-sm">Selecciona varios tickets</p>
+ <div id="multi-files-list" class="mt-4 text-left text-sm text-gray-600 dark:text-darkfg-muted"></div>
+ <div id="multi-process-btn" class="hidden mt-4">
+ <button type="submit"
+ class="bg-green-600 dark:bg-success text-white px-8 py-3 rounded-lg font-bold text-lg">
+ ⚡ Procesar tickets
+ </button>
+ <p class="text-xs text-amber-600 dark:text-amber-400 mt-2">
+ ⚠️ Los tickets se guardarán automáticamente sin revisión manual
+ </p>
+ </div>
+ </form>
+ <div id="batch-loading" class="hidden text-center py-8">
+ <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-blue-600 dark:border-accent border-t-transparent"></div>
+ <p class="mt-3 text-sm font-semibold text-gray-700 dark:text-darkfg">Procesando cola... <span id="batch-timer" class="text-blue-600 dark:text-accent font-mono">0s</span></p>
+ </div>
+ <div id="batch-result" class="mt-6"></div>
+</div>
+
 </div>
 
 <script>
@@ -223,6 +269,55 @@
  } else {
  // Sin rotación: el form se envía normalmente, iniciar timer
  startTimer();
+ }
+ });
+
+ // Toggle Individual/Múltiple
+ function toggleMode(mode) {
+ const single = document.getElementById('upload-form');
+ const multiple = document.getElementById('multiple-upload');
+ if (mode === 'multiple') {
+ single.classList.add('hidden');
+ multiple.classList.remove('hidden');
+ } else {
+ single.classList.remove('hidden');
+ multiple.classList.add('hidden');
+ }
+ }
+
+ // Multi-file selection
+ const multiInput = document.getElementById('multi-file-input');
+ const multiList = document.getElementById('multi-files-list');
+ const multiProcessBtn = document.getElementById('multi-process-btn');
+
+ multiInput.addEventListener('change', function(e) {
+ const files = e.target.files;
+ if (files.length > 0) {
+ multiList.innerHTML = '<p class="font-semibold mb-2">' + files.length + ' archivos seleccionados:</p>';
+ for (let i = 0; i < files.length; i++) {
+ multiList.innerHTML += '<p>📄 ' + files[i].name + ' (' + (files[i].size/1024).toFixed(0) + ' KB)</p>';
+ }
+ multiProcessBtn.classList.remove('hidden');
+ multiProcessBtn.querySelector('button').textContent = '⚡ Procesar ' + files.length + ' tickets';
+ }
+ });
+
+ // Timer para batch
+ let batchInterval = null;
+ let batchStart = 0;
+ document.body.addEventListener('htmx:beforeRequest', function(evt) {
+ if (evt.detail.elt.id === 'multi-form') {
+ batchStart = Date.now();
+ const timer = document.getElementById('batch-timer');
+ batchInterval = setInterval(function() {
+ const elapsed = (Date.now() - batchStart) / 1000;
+ if (timer) timer.textContent = elapsed.toFixed(1) + 's';
+ }, 100);
+ }
+ });
+ document.body.addEventListener('htmx:afterRequest', function(evt) {
+ if (evt.detail.elt.id === 'multi-form') {
+ if (batchInterval) { clearInterval(batchInterval); batchInterval = null; }
  }
  });
 </script>
