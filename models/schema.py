@@ -12,7 +12,7 @@ def get_db():
     return conn
 
 def init_db():
-    """Inicializar la base de datos con el schema v5."""
+    """Inicializar la base de datos."""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = get_db()
     c = conn.cursor()
@@ -105,7 +105,6 @@ def init_db():
     CREATE INDEX IF NOT EXISTS idx_products_name ON products(name);
     CREATE INDEX IF NOT EXISTS idx_products_date ON products(date);
     CREATE INDEX IF NOT EXISTS idx_products_merchant ON products(merchant_id);
-
     CREATE INDEX IF NOT EXISTS idx_trans_date ON transactions(date);
     CREATE INDEX IF NOT EXISTS idx_trans_kind_date ON transactions(kind, date);
     CREATE INDEX IF NOT EXISTS idx_trans_category ON transactions(category_id);
@@ -118,70 +117,40 @@ def init_db():
     );
     """)
 
-    # Valores por defecto de los ajustes
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('deep_analysis', 'false')")
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('theme', 'light')")
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('category_analysis', 'false')")
-    c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('enable_thinking', 'true')")
+    # Ajustes por defecto
+    for k, v in [('deep_analysis', 'false'), ('theme', 'light'), ('category_analysis', 'false'), ('enable_thinking', 'true')]:
+        c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
 
-    # Migración: añadir columna image_path a scans si no existe
+    # Migraciones de columnas
     c.execute("PRAGMA table_info(scans)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'image_path' not in columns:
-        c.execute("ALTER TABLE scans ADD COLUMN image_path TEXT")
-
-    # Migración: añadir columna card_last4 a transactions si no existe
+    if 'image_path' not in [r[1] for r in c.fetchall()]: c.execute("ALTER TABLE scans ADD COLUMN image_path TEXT")
     c.execute("PRAGMA table_info(transactions)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'card_last4' not in columns:
-        c.execute("ALTER TABLE transactions ADD COLUMN card_last4 TEXT")
+    cols = [r[1] for r in c.fetchall()]
+    if 'card_last4' not in cols: c.execute("ALTER TABLE transactions ADD COLUMN card_last4 TEXT")
+    if 'vehicle' not in cols: c.execute("ALTER TABLE transactions ADD COLUMN vehicle TEXT")
 
-    # Migración: añadir columna vehicle a transactions si no existe
-    c.execute("PRAGMA table_info(transactions)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'vehicle' not in columns:
-        c.execute("ALTER TABLE transactions ADD COLUMN vehicle TEXT")
+    # Sincronizar categorías
+    all_cats = CATEGORIES + TRANSPORT_SUBCATEGORIES
+    for cat in all_cats:
+        c.execute("INSERT OR REPLACE INTO categories (id, name, parent_id, color) VALUES (?, ?, ?, ?)", cat)
 
-    # Insertar categorías canónicas si no existen
-    for cat in CATEGORIES + TRANSPORT_SUBCATEGORIES:
-        c.execute(
-            "INSERT OR IGNORE INTO categories (id, name, parent_id, color) VALUES (?, ?, ?, ?)",
-            cat
-        )
-
-    # FIX 25A: Limpiar categorías viejas y asegurar las 6 nuevas
-    # Eliminar categorías que ya no existen
-    valid_ids = [1, 2, 3, 4, 5, 6]
-    valid_ids_str = ",".join(map(str, valid_ids))
-    c.execute("DELETE FROM categories WHERE id NOT IN (" + valid_ids_str + ")")
-    # Actualizar transacciones que apuntan a categorías viejas
-    c.execute("UPDATE transactions SET category_id = 6 WHERE category_id NOT IN (" + valid_ids_str + ")")
-    # Actualizar items de transacciones
-    c.execute("UPDATE transaction_items SET category_id = 6 WHERE category_id NOT IN (" + valid_ids_str + ")")
-
-    # FIX 18: Migrar quantity de INTEGER a REAL en transaction_items
-    # SQLite no soporta ALTER COLUMN, así que recrear la tabla
+    # Migrar quantity a REAL
     c.execute("PRAGMA table_info(transaction_items)")
-    columns = [row[1] for row in c.fetchall()]
-    if 'quantity' in columns:
-        # Verificar si quantity es INTEGER (necesita migración)
-        c.execute("SELECT typeof(quantity) FROM transaction_items LIMIT 1")
-        type_row = c.fetchone()
-        if type_row and type_row[0] == 'integer':
-            # Recrear tabla con quantity REAL
-            c.execute("ALTER TABLE transaction_items RENAME TO transaction_items_old")
-            c.execute("""
-                CREATE TABLE transaction_items (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-                    description TEXT NOT NULL,
-                    quantity REAL DEFAULT 1.0,
-                    unit_price REAL NOT NULL,
-                    category_id INTEGER REFERENCES categories(id)
-                )
-            """)
-            c.execute("INSERT INTO transaction_items SELECT * FROM transaction_items_old")
-            c.execute("DROP TABLE transaction_items_old")
+    q_col = [r for r in c.fetchall() if r[1] == 'quantity']
+    if q_col and 'INT' in q_col[0][2].upper():
+        c.execute("ALTER TABLE transaction_items RENAME TO transaction_items_old")
+        c.execute("""
+            CREATE TABLE transaction_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                transaction_id INTEGER NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+                description TEXT NOT NULL,
+                quantity REAL DEFAULT 1.0,
+                unit_price REAL NOT NULL,
+                category_id INTEGER REFERENCES categories(id)
+            )
+        """)
+        c.execute("INSERT INTO transaction_items SELECT * FROM transaction_items_old")
+        c.execute("DROP TABLE transaction_items_old")
 
     conn.commit()
     conn.close()

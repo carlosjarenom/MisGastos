@@ -224,10 +224,10 @@
         const name = btn.textContent.trim();
         document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
 
-        // Mostrar campo "Coche" solo si es Carburante (11)
+        // Mostrar campo "Coche" solo si es Gasolina (11) o Diésel (12)
         const vehicleField = document.getElementById('vehicle-field');
         if (vehicleField) {
-            if (catId === 11) {
+            if (catId === 11 || catId === 12) {
                 vehicleField.classList.remove('hidden');
             } else {
                 vehicleField.classList.add('hidden');
@@ -250,7 +250,7 @@
         const qtys = document.querySelectorAll('.item-qty-input');
         let sum = 0;
         prices.forEach((p, i) => {
-            sum += parseFloat(p.value || 0) * parseInt(qtys[i].value || 1);
+            sum += parseFloat(p.value || 0) * parseFloat(qtys[i].value || 1);
         });
         document.getElementById('items-sum').textContent = sum.toFixed(2);
         const total = parseFloat(document.getElementById('save-total').value || 0);

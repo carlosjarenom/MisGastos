@@ -1,14 +1,16 @@
 """
 services/ocr.py — Backend OCR vía VLM (Qwen3.5-9B)
 """
-import json
 import base64
-import time
+import json
 import logging
+import re
+import time
 from dataclasses import dataclass
-from services.llama_client import call_vlm
-from services.image_processor import preprocess_image
+
 from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS
+from services.image_processor import preprocess_image
+from services.llama_client import call_vlm
 
 log = logging.getLogger(__name__)
 
@@ -91,8 +93,6 @@ Esquema esperado:
 
 Devuelve SOLO el JSON. Nada más."""
 
-
-# Prompt para modo RÁPIDO (sin items, solo total)
 SYSTEM_PROMPT_FAST = """Eres un asistente experto en extraer información estructurada
 de tickets de compra españoles. Tu única salida es un objeto JSON válido,
 sin texto adicional, sin explicaciones, sin markdown.
@@ -145,26 +145,13 @@ class OCRResult:
 
 
 def extract_ticket(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True) -> OCRResult:
-    """Extraer datos de un ticket usando Qwen3.5-9B.
-
-    Args:
-        image_path: ruta a la imagen
-        deep_analysis: si True, extrae items individuales (lento).
-                       si False, solo fecha/comercio/total (rápido).
-        enable_thinking: si True, el modelo razona antes (más preciso, lento).
-                         si False, responde directo (más rápido, ~5-20s).
-    """
-    # Preprocesar
+    """Extraer datos de un ticket usando Qwen3.5-9B."""
     processed = preprocess_image(image_path)
-
-    # Primera llamada
     result = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
 
-    # Sanity checks
     if not _passes_sanity_check(result):
         result.overall_confidence = 0.0
 
-    # Doble check para tickets grandes (solo en modo profundo)
     if deep_analysis and result.total and result.total > DOUBLE_CHECK_THRESHOLD:
         second = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
         if result.total and second.total:
@@ -177,66 +164,27 @@ def extract_ticket(image_path: str, deep_analysis: bool = True, enable_thinking:
 
 
 def _clean_json_response(raw: str) -> str:
-    """Extraer JSON válido de la respuesta del VLM.
-
-    Qwen y otros VLMs envuelven su output de muchas formas:
-    - ```json ... ``` (markdown fences)
-    - ``` ... ``` (fences sin 'json')
-    - "Aquí tienes: {...}" (texto antes/después)
-    - <think>reasoning</think>{...} (tags de reasoning)
-    - {...} texto extra después
-    - Razonamiento puro sin JSON (devuelve vacío)
-
-    Esta función extrae solo el JSON válido.
-    """
-    import re
-
-    if not raw:
-        return ""
-
+    """Extraer JSON válido de la respuesta del VLM."""
+    if not raw: return ""
     text = raw.strip()
-
-    # 1. Quitar <think>...</think> blocks (modelos de reasoning)
     text = re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
-
-    # 2. Si hay ```json ... ``` o ``` ... ```, extraer el contenido del primer fence
     fence_pattern = r'```(?:json)?\s*\n?(.*?)\n?\s*```'
     fence_match = re.search(fence_pattern, text, re.DOTALL)
-    if fence_match:
-        text = fence_match.group(1).strip()
-
-    # 3. Buscar el primer { y el último } — extraer lo que hay entre ellos
-    first_brace = text.find('{')
-    last_brace = text.rfind('}')
+    if fence_match: text = fence_match.group(1).strip()
+    first_brace, last_brace = text.find('{'), text.rfind('}')
     if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
         text = text[first_brace:last_brace + 1]
-
-    # 4. Si no hay { ni }, el texto es razonamiento puro sin JSON
-    if '{' not in text:
-        return ""  # json.loads fallará con mensaje claro
-
-    return text.strip()
+    return text.strip() if '{' in text else ""
 
 
 def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True) -> OCRResult:
-    """Llamar al VLM con formato data URI limpio (sin newlines en base64).
-
-    llama.cpp tiene un bug con el formato data:image/jpeg;base64,
-    devuelve "Invalid url value" (500).
-    Solución: codificar base64 sin newlines y usar data URI estricto.
-    Si falla, intentar con requests directo (bypass de librería openai).
-    """
+    """Llamar al VLM con reintento direct por bug de llama.cpp."""
     t0 = time.time()
-
     with open(image_path, "rb") as f:
         img_bytes = f.read()
-    # Codificar base64 y quitar TODOS los newlines (llama.cpp es estricto)
     img_b64 = base64.b64encode(img_bytes).decode().replace('\n', '').replace('\r', '')
-
-    # Formato data URI estricto (sin espacios, sin newlines)
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
-    # Elegir prompt según modo
     system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
     user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
 
@@ -248,149 +196,57 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
         ]},
     ]
 
+    raw = None
     try:
         raw = call_vlm(messages, enable_thinking=enable_thinking)
-    except ValueError as e:
-        # Si el formato data URI falla, intentar con requests directo
-        # (bypass de la librería openai)
-        duration_ms = int((time.time() - t0) * 1000)
-        log.warning(f"Formato data URI falló ({e}). Probando con requests directo...")
-
-        try:
-            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis)
-        except Exception as e2:
-            return OCRResult(
-                fecha=None, comercio=None, card_last4=None, items=[], total=None,
-                metodo_pago=None, overall_confidence=0.0,
-                field_confidence={}, model="qwen3.5-9b",
-                raw_output="", duration_ms=duration_ms,
-                error=f"vlm_empty_response: {e2}"
-            )
-
     except Exception as e:
-        duration_ms = int((time.time() - t0) * 1000)
-        error_msg = str(e)
-        # Si el error contiene "Invalid url value", es el bug de llama.cpp
-        if "Invalid url value" in error_msg:
-            return OCRResult(
-                fecha=None, comercio=None, card_last4=None, items=[], total=None,
-                metodo_pago=None, overall_confidence=0.0,
-                field_confidence={}, model="qwen3.5-9b",
-                raw_output="", duration_ms=duration_ms,
-                error=f"llama_cpp_invalid_url: llama.cpp no acepta el formato de imagen. "
-                f"Error: {error_msg}. "
-                f"Verifica versión de llama.cpp (necesita soporte vision)."
-            )
-        return OCRResult(
-            fecha=None, comercio=None, card_last4=None, items=[], total=None,
-            metodo_pago=None, overall_confidence=0.0,
-            field_confidence={}, model="qwen3.5-9b",
-            raw_output="", duration_ms=duration_ms,
-            error=f"vlm_unavailable: {type(e).__name__}: {error_msg}"
-        )
+        log.warning(f"VLM call failed: {e}. Retrying with direct requests...")
+        try:
+            raw = _call_vlm_direct(img_b64, deep_analysis=deep_analysis)
+        except Exception as e2:
+            duration_ms = int((time.time() - t0) * 1000)
+            return OCRResult(None, None, None, [], None, None, 0.0, {}, "qwen3.5-9b", "", duration_ms, error=str(e2))
 
     duration_ms = int((time.time() - t0) * 1000)
-
     cleaned = _clean_json_response(raw)
 
     try:
         data = json.loads(cleaned)
-    except json.JSONDecodeError:
-        raw_preview = raw[:500] if raw else "(empty response)"
-        # Detectar si es razonamiento sin JSON (FIX 19D)
-        if '{' not in raw:
-            error_msg = f"vlm_no_json | El modelo razonó pero no produjo JSON. "
-            error_msg += f"Probablemente se quedó sin tokens (finish_reason=length). "
-            error_msg += f"max_tokens={LLAMA_MAX_TOKENS}. "
-            error_msg += f"Response (first 500 chars): {raw_preview}"
-        else:
-            error_msg = f"json_parse_error | VLM response (first 500 chars): {raw_preview}"
-        return OCRResult(
-            fecha=None, comercio=None, card_last4=None, items=[], total=None,
-            metodo_pago=None, overall_confidence=0.0,
-            field_confidence={}, model="qwen3.5-9b",
-            raw_output=raw, duration_ms=duration_ms,
-            error=error_msg
-        )
+    except:
+        return OCRResult(None, None, None, [], None, None, 0.0, {}, "qwen3.5-9b", raw, duration_ms, error="json_parse_error")
 
     return OCRResult(
-        fecha=data.get("fecha"),
-        comercio=data.get("comercio"),
-        card_last4=data.get("card_last4"),
-        items=data.get("items", []),
-        total=data.get("total"),
-        metodo_pago=data.get("metodo_pago"),
-        categoria_sugerida=data.get("categoria_sugerida"),
-        overall_confidence=data.get("overall_confidence", 0.0),
-        field_confidence=data.get("field_confidence", {}),
-        model="qwen3.5-9b",
-        raw_output=raw,
-        duration_ms=duration_ms,
+        fecha=data.get("fecha"), comercio=data.get("comercio"), card_last4=data.get("card_last4"),
+        items=data.get("items", []), total=data.get("total"), metodo_pago=data.get("metodo_pago"),
+        categoria_sugerida=data.get("categoria_sugerida"), overall_confidence=data.get("overall_confidence", 0.0),
+        field_confidence=data.get("field_confidence", {}), model="qwen3.5-9b", raw_output=raw, duration_ms=duration_ms
     )
 
-
-def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True) -> str:
-    """Llamar al VLM con requests directo (bypass de librería openai).
-
-    Algunas versiones de la librería openai manipulan el base64
-    y rompen el formato. Usar requests directamente es más fiable.
-    """
+def _call_vlm_direct(img_b64: str, deep_analysis: bool = True) -> str:
     import requests
     from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE, LLAMA_MAX_TOKENS
-
-    data_uri = f"data:image/jpeg;base64,{img_b64}"
-
-    system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
-    user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
-
+    sys_p = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
+    user_p = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
     payload = {
-        "model": LLAMA_MODEL,
+        "model": LLAMA_MODEL, "temperature": LLAMA_TEMPERATURE, "max_tokens": LLAMA_MAX_TOKENS,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": [
-                {"type": "image_url", "image_url": {"url": data_uri}},
-                {"type": "text", "text": user_prompt},
-            ]},
+            {"role": "system", "content": sys_p},
+            {"role": "user", "content": [{"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"}}, {"type": "text", "text": user_p}]}
         ],
-        "temperature": LLAMA_TEMPERATURE,
-        "top_p": 0.9,
-        "max_tokens": LLAMA_MAX_TOKENS,
-        "enable_thinking": True,
+        "enable_thinking": True
     }
-
-    response = requests.post(
-        f"{LLAMA_ENDPOINT}/chat/completions",
-        json=payload,
-        timeout=120,
-    )
-
-    if response.status_code != 200:
-        raise ValueError(
-            f"VLM error {response.status_code}: {response.text[:300]}"
-        )
-
-    data = response.json()
-    content = data["choices"][0]["message"]["content"]
-
-    if not content:
-        finish_reason = data["choices"][0].get("finish_reason", "unknown")
-        raise ValueError(f"VLM response vacío. finish_reason={finish_reason}")
-
-    return content.strip()
-
+    r = requests.post(f"{LLAMA_ENDPOINT}/chat/completions", json=payload, timeout=120)
+    if r.status_code != 200: raise ValueError(f"Direct VLM error {r.status_code}")
+    return r.json()["choices"][0]["message"]["content"]
 
 def _passes_sanity_check(r: OCRResult) -> bool:
-    if not r.total or r.total <= 0 or r.total > 10000:
-        return False
+    if not r.total or r.total <= 0 or r.total > 10000: return False
     if r.items and r.total:
-        items_sum = sum(i.get("precio", 0) * float(i.get("cantidad", 1)) for i in r.items)
-        if items_sum > 0 and abs(items_sum - r.total) > 0.50: # 0.50€ tolerancia por redondeos
-            return False
+        s = sum(i.get("precio", 0) * float(i.get("cantidad", 1)) for i in r.items)
+        if s > 0 and abs(s - r.total) > 0.50: return False
     if r.fecha:
         try:
-            year = int(r.fecha[:4])
-            if year < 2020 or year > 2027:
-                return False
-        except (ValueError, IndexError):
-            return False
+            y = int(r.fecha[:4])
+            if y < 2020 or y > 2027: return False
+        except: return False
     return True
