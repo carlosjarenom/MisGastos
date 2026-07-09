@@ -224,10 +224,10 @@
         const name = btn.textContent.trim();
         document.getElementById('selected-category').textContent = 'Seleccionada: ' + name;
 
-        // Mostrar campo "Coche" solo si es Carburante (11)
+        // Mostrar campo "Coche" solo si es Carburante (catId === 4)
         const vehicleField = document.getElementById('vehicle-field');
         if (vehicleField) {
-            if (catId === 11) {
+            if (catId === 4) {
                 vehicleField.classList.remove('hidden');
             } else {
                 vehicleField.classList.add('hidden');

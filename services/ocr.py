@@ -257,7 +257,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
         log.warning(f"Formato data URI falló ({e}). Probando con requests directo...")
 
         try:
-            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis)
+            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
         except Exception as e2:
             return OCRResult(
                 fecha=None, comercio=None, card_last4=None, items=[], total=None,
@@ -329,7 +329,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
     )
 
 
-def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True) -> str:
+def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, enable_thinking: bool = True) -> str:
     """Llamar al VLM con requests directo (bypass de librería openai).
 
     Algunas versiones de la librería openai manipulan el base64
@@ -355,7 +355,7 @@ def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True) 
         "temperature": LLAMA_TEMPERATURE,
         "top_p": 0.9,
         "max_tokens": LLAMA_MAX_TOKENS,
-        "enable_thinking": True,
+        "enable_thinking": enable_thinking,
     }
 
     response = requests.post(
