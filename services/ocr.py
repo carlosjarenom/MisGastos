@@ -157,8 +157,11 @@ def extract_ticket(image_path: str, deep_analysis: bool = True, enable_thinking:
     # Preprocesar
     processed = preprocess_image(image_path)
 
+    # Si thinking desactivado, usar menos tokens (no hay razonamiento, JSON corto)
+    max_tokens = 8192 if enable_thinking else 2048
+
     # Primera llamada
-    result = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
+    result = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking, max_tokens=max_tokens)
 
     # Sanity checks
     if not _passes_sanity_check(result):
@@ -166,7 +169,7 @@ def extract_ticket(image_path: str, deep_analysis: bool = True, enable_thinking:
 
     # Doble check para tickets grandes (solo en modo profundo)
     if deep_analysis and result.total and result.total > DOUBLE_CHECK_THRESHOLD:
-        second = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
+        second = _call_vlm(processed, deep_analysis=deep_analysis, enable_thinking=enable_thinking, max_tokens=max_tokens)
         if result.total and second.total:
             discrepancy = abs(result.total - second.total) / max(result.total, 0.01)
             if discrepancy > 0.05:
@@ -218,7 +221,7 @@ def _clean_json_response(raw: str) -> str:
     return text.strip()
 
 
-def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True) -> OCRResult:
+def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool = True, max_tokens: int = 8192) -> OCRResult:
     """Llamar al VLM con formato data URI limpio (sin newlines en base64).
 
     llama.cpp tiene un bug con el formato data:image/jpeg;base64,
@@ -238,6 +241,11 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
 
     # Elegir prompt según modo
     system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
+
+    # Si thinking desactivado, añadir énfasis al prompt
+    if not enable_thinking:
+        system_prompt += "\n\nIMPORTANTE: Responde DIRECTAMENTE con el JSON. No razones. No pienses. Solo el JSON."
+
     user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
 
     messages = [
@@ -249,7 +257,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
     ]
 
     try:
-        raw = call_vlm(messages, enable_thinking=enable_thinking)
+        raw = call_vlm(messages, enable_thinking=enable_thinking, max_tokens=max_tokens)
     except ValueError as e:
         # Si el formato data URI falla, intentar con requests directo
         # (bypass de la librería openai)
@@ -257,7 +265,7 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
         log.warning(f"Formato data URI falló ({e}). Probando con requests directo...")
 
         try:
-            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis, enable_thinking=enable_thinking)
+            raw = _call_vlm_direct(image_path, img_b64, deep_analysis=deep_analysis, enable_thinking=enable_thinking, max_tokens=max_tokens)
         except Exception as e2:
             return OCRResult(
                 fecha=None, comercio=None, card_last4=None, items=[], total=None,
@@ -329,18 +337,23 @@ def _call_vlm(image_path: str, deep_analysis: bool = True, enable_thinking: bool
     )
 
 
-def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, enable_thinking: bool = True) -> str:
+def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, enable_thinking: bool = True, max_tokens: int = 8192) -> str:
     """Llamar al VLM con requests directo (bypass de librería openai).
 
     Algunas versiones de la librería openai manipulan el base64
     y rompen el formato. Usar requests directamente es más fiable.
     """
     import requests
-    from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE, LLAMA_MAX_TOKENS
+    from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE
 
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
     system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
+
+    # Si thinking desactivado, añadir énfasis al prompt
+    if not enable_thinking:
+        system_prompt += "\n\nIMPORTANTE: Responde DIRECTAMENTE con el JSON. No razones. No pienses. Solo el JSON."
+
     user_prompt = USER_PROMPT if deep_analysis else "Extrae los datos de este ticket en JSON. Devuelve SOLO el JSON."
 
     payload = {
@@ -354,8 +367,7 @@ def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, 
         ],
         "temperature": LLAMA_TEMPERATURE,
         "top_p": 0.9,
-        "max_tokens": LLAMA_MAX_TOKENS,
-        "enable_thinking": enable_thinking,
+        "max_tokens": max_tokens,
     }
 
     response = requests.post(
