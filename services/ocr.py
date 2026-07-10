@@ -5,10 +5,12 @@ import json
 import base64
 import time
 import logging
+import re
+import requests
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
-from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS
+from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS, LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE
 
 log = logging.getLogger(__name__)
 
@@ -189,7 +191,6 @@ def _clean_json_response(raw: str) -> str:
 
     Esta función extrae solo el JSON válido.
     """
-    import re
 
     if not raw:
         return ""
@@ -335,8 +336,6 @@ def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, 
     Algunas versiones de la librería openai manipulan el base64
     y rompen el formato. Usar requests directamente es más fiable.
     """
-    import requests
-    from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE, LLAMA_MAX_TOKENS
 
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
@@ -358,16 +357,28 @@ def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, 
         "enable_thinking": enable_thinking,
     }
 
-    response = requests.post(
-        f"{LLAMA_ENDPOINT}/chat/completions",
-        json=payload,
-        timeout=120,
-    )
+    # Reintento simple (Memory)
+    max_retries = 2
+    last_error = None
+    response = None
 
-    if response.status_code != 200:
-        raise ValueError(
-            f"VLM error {response.status_code}: {response.text[:300]}"
-        )
+    for attempt in range(max_retries + 1):
+        try:
+            response = requests.post(
+                f"{LLAMA_ENDPOINT}/chat/completions",
+                json=payload,
+                timeout=120,
+            )
+            if response.status_code == 200:
+                break
+            last_error = f"HTTP {response.status_code}: {response.text[:200]}"
+        except Exception as e:
+            last_error = str(e)
+
+        if attempt < max_retries:
+            time.sleep(2)
+    else:
+        raise ValueError(f"VLM falló tras {max_retries} reintentos. Error: {last_error}")
 
     data = response.json()
     content = data["choices"][0]["message"]["content"]

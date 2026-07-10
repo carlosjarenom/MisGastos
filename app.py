@@ -7,14 +7,17 @@ import sqlite3
 import uuid
 import json
 import calendar
+import shutil
+import requests as req_lib
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify
 from werkzeug.utils import secure_filename
 from models.schema import get_db, init_db
 from services.ocr import extract_ticket
 from services.classifier import clasificar_por_items, clasificar_por_comercio, clasificar_por_comercio_override
-from services.excel import import_excel, export_excel
-from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
+from services.excel import import_excel, export_excel, export_month_excel
+from services.image_processor import rotate_image, enhance_image
+from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH, CATEGORIES, LLAMA_ENDPOINT
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
@@ -58,9 +61,7 @@ def is_thinking_enabled() -> bool:
 
 
 # Mapeo de nombres de categoría a IDs (para sugerencia del VLM)
-CATEGORY_NAME_TO_ID = {
-    "Comida": 1, "Ropa": 2, "Farmacia": 3, "Carburante": 4, "Banco": 5, "Otros": 6,
-}
+CATEGORY_NAME_TO_ID = {cat[1]: cat[0] for cat in CATEGORIES}
 
 
 # ============================================================
@@ -89,15 +90,6 @@ def format_date_es(value):
         return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
     except (ValueError, TypeError):
         return value
-
-
-# ============================================================
-# INICIALIZACIÓN
-# ============================================================
-
-@app.before_request
-def ensure_db():
-    init_db()
 
 
 # ============================================================
@@ -305,7 +297,6 @@ def scan_upload():
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -343,7 +334,6 @@ def scan_upload_batch():
     thinking = is_thinking_enabled()
 
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'color': cat[3]})
 
@@ -580,27 +570,13 @@ def scan_save():
                     INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                     VALUES (?, ?, ?, ?, ?)
                 """, (txn_id, desc, qty, price, data["category_id"]))
-
-    # Guardar items también en tabla products (historial de precios)
-    if deep:
-        for i in range(len(item_descs)):
-            desc = item_descs[i].strip()
-            try:
-                price = float(item_prices[i])
-            except (ValueError, IndexError):
-                price = 0
-            try:
-                qty = float(item_quants[i])
-            except (ValueError, IndexError):
-                qty = 1.0
-            if desc and price > 0:
+                # Guardar items también en tabla products (historial de precios)
                 # precio del OCR = precio UNITARIO (no total)
                 # Para gasolina: precio = €/litro, cantidad = litros
-                unit_price = price
                 c.execute("""
                     INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                     VALUES (?, ?, ?, ?, ?)
-                """, (desc, unit_price, data["date"], txn_id, merchant_id))
+                """, (desc, price, data["date"], txn_id, merchant_id))
 
     # Actualizar scan → vincular a transacción + marcar como guardado
     if data["scan_id"]:
@@ -893,15 +869,17 @@ def delete_expense(txn_id):
     conn.commit()
     conn.close()
 
-    # O8: Borrar imagen del disco
+    # O8: Borrar imagen del disco y variantes
     if image_path:
         full_path = os.path.join(UPLOAD_DIR, image_path)
         if os.path.exists(full_path):
             os.remove(full_path)
+
         base, _ = os.path.splitext(full_path)
-        processed = base + "_processed.jpg"
-        if os.path.exists(processed):
-            os.remove(processed)
+        for suffix in ["_processed", "_current", "_enhanced", "_rot90", "_rot180", "_rot270"]:
+            variant = f"{base}{suffix}.jpg"
+            if os.path.exists(variant):
+                os.remove(variant)
 
     return redirect(url_for("expenses"))
 
@@ -992,7 +970,6 @@ def edit_pending_scan(scan_id):
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -1069,7 +1046,6 @@ def rotate_scan(scan_id, degrees):
         return "Imagen no encontrada en disco", 404
 
     try:
-        from services.image_processor import rotate_image
         rotated_path = rotate_image(image_path, degrees)
         rotated_filename = os.path.basename(rotated_path)
         c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
@@ -1140,7 +1116,6 @@ def enhance_scan(scan_id):
         return "Imagen no encontrada en disco", 404
 
     try:
-        from services.image_processor import enhance_image
         enhanced_path = enhance_image(image_path)
         enhanced_filename = os.path.basename(enhanced_path)
         c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
@@ -1288,7 +1263,6 @@ def new_expense_manual():
     conn = get_db()
     c = conn.cursor()
 
-    from config import CATEGORIES
     all_categories = []
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1],
@@ -1366,26 +1340,12 @@ def new_expense_manual():
                         INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                         VALUES (?, ?, ?, ?, ?)
                     """, (txn_id, desc, qty, price, category_id))
-
-        # Guardar items también en tabla products (historial de precios)
-        if deep:
-            for i in range(len(item_descs)):
-                desc = item_descs[i].strip()
-                try:
-                    price = float(item_prices[i])
-                except (ValueError, IndexError):
-                    price = 0
-                try:
-                    qty = float(item_quants[i])
-                except (ValueError, IndexError):
-                    qty = 1.0
-                if desc and price > 0:
+                    # Guardar items también en tabla products (historial de precios)
                     # precio del form = precio UNITARIO (no total)
-                    unit_price = price
                     c.execute("""
                         INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (desc, unit_price, date_val, txn_id, merchant_id))
+                    """, (desc, price, date_val, txn_id, merchant_id))
 
         conn.commit()
         conn.close()
@@ -1433,10 +1393,8 @@ def export_excel_route():
     """Exportar a Excel."""
     month = request.args.get("month")
     year = request.args.get("year")
-    import os
 
     if year and month:
-        from services.excel import export_month_excel
         path = export_month_excel(year=year, month=month)
         filename = f"gastos_{year}_{month}.xlsx"
     else:
@@ -1458,8 +1416,6 @@ def export_excel_route():
 @app.route("/health")
 def health():
     """Health check — verifica DB, VLM y disco."""
-    import shutil
-    import requests as req_lib
 
     # DB check
     db_ok = False
@@ -1474,7 +1430,6 @@ def health():
     # VLM check
     vlm_ok = False
     try:
-        from config import LLAMA_ENDPOINT
         r = req_lib.get(f"{LLAMA_ENDPOINT}/models", timeout=2)
         vlm_ok = r.status_code == 200
     except Exception:
