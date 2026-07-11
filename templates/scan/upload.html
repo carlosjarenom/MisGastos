@@ -36,7 +36,7 @@
 
  <div id="preview-container" class="hidden mb-4">
  <div class="relative inline-block">
- <img id="preview-image" class="max-h-64 mx-auto rounded shadow dark:bg-darkcanvas transition-transform duration-200"
+ <img id="preview-image" class="max-h-[60vh] mx-auto rounded shadow dark:bg-darkcanvas transition-transform duration-200"
  style="object-fit: contain; transform: rotate(0deg);">
  </div>
  <p class="text-sm text-gray-500 dark:text-darkfg-muted mt-2" id="preview-name"></p>
@@ -73,26 +73,25 @@
  </div>
  </form>
 
- <!-- Spinner + contador + botón cancelar -->
- <div id="loading" class="hidden text-center py-6">
- <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-blue-600 dark:border-accent border-t-transparent"></div>
- <p class="mt-3 text-sm font-semibold text-gray-700 dark:text-darkfg">Procesando... <span id="loading-timer" class="text-blue-600 dark:text-accent font-mono">0s</span></p>
+ <!-- Spinner + cronómetro (no se oculta al terminar) -->
+ <div id="loading" class="hidden">
+ <div class="flex items-center gap-3 justify-center py-4">
+ <div id="loading-spinner" class="inline-block animate-spin rounded-full h-6 w-6 border-3 border-blue-600 dark:border-accent border-t-transparent"></div>
+ <p class="text-sm font-semibold text-gray-700 dark:text-darkfg">
+ Procesando... <span id="loading-timer" class="text-blue-600 dark:text-accent font-mono">0.0s</span>
+ </p>
  <button type="button" id="cancel-btn" onclick="cancelProcessing()"
- class="mt-3 px-4 py-1.5 border border-red-500 text-red-600 dark:text-red-400 rounded text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20">
- ✕ Parar de procesar
+ class="px-3 py-1 border border-red-500 text-red-600 dark:text-red-400 rounded text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20">
+ ✕ Cancelar
  </button>
- <p class="text-xs text-gray-400 mt-1">El modelo puede seguir trabajando en background</p>
+ </div>
+ <p class="text-xs text-gray-400 text-center">El modelo puede seguir trabajando en background</p>
  </div>
 
  <div id="result" class="mt-6"></div>
 
  <!-- Upload múltiple (oculto por defecto) -->
 <div id="multiple-upload" class="hidden">
- <form id="multi-form" hx-post="/scan/upload-batch"
- hx-encoding="multipart/form-data"
- hx-target="#batch-result"
- hx-swap="innerHTML"
- hx-indicator="#batch-loading">
  <input type="file" name="images" accept="image/*" multiple
  class="hidden" id="multi-file-input">
  <button type="button"
@@ -103,7 +102,7 @@
  <p class="mt-3 text-gray-500 dark:text-darkfg-muted text-sm">Selecciona varios tickets</p>
  <div id="multi-files-list" class="mt-4 text-left text-sm text-gray-600 dark:text-darkfg-muted"></div>
  <div id="multi-process-btn" class="hidden mt-4">
- <button type="submit"
+ <button type="button" onclick="processBatch()"
  class="bg-green-600 dark:bg-success text-white px-8 py-3 rounded-lg font-bold text-lg">
  ⚡ Procesar tickets
  </button>
@@ -111,13 +110,13 @@
  ⚠️ Los tickets se guardarán automáticamente sin revisión manual
  </p>
  </div>
- </form>
- <div id="batch-loading" class="hidden text-center py-8">
- <div class="inline-block animate-spin rounded-full h-8 w-8 border-3 border-blue-600 dark:border-accent border-t-transparent"></div>
- <p class="mt-3 text-sm font-semibold text-gray-700 dark:text-darkfg">Procesando cola... <span id="batch-timer" class="text-blue-600 dark:text-accent font-mono">0s</span></p>
  </div>
+
+ <!-- Cola de procesamiento en tiempo real -->
+ <div id="batch-queue" class="hidden mt-6 space-y-2"></div>
+
+ <!-- Resultados finales -->
  <div id="batch-result" class="mt-6"></div>
-</div>
 
 </div>
 
@@ -196,6 +195,16 @@
  if (loadingTimer) loadingTimer.textContent = '0.0s';
  loadingDiv.classList.remove('hidden');
 
+ // Mostrar spinner de nuevo
+ const spinner = document.getElementById('loading-spinner');
+ if (spinner) spinner.classList.remove('hidden');
+ // Restaurar texto
+ const timerText = document.querySelector('#loading p');
+ if (timerText) {
+ timerText.innerHTML = 'Procesando... <span id="loading-timer" class="text-blue-600 dark:text-accent font-mono">0.0s</span>';
+ }
+ loadingTimer = document.getElementById('loading-timer'); // re-asignar
+
  // Actualizar cada 100ms con decimales
  loadingInterval = setInterval(function() {
  const elapsed = (Date.now() - loadingStartTime) / 1000;
@@ -208,7 +217,16 @@
  clearInterval(loadingInterval);
  loadingInterval = null;
  }
- loadingDiv.classList.add('hidden');
+ // NO ocultar el div loading — dejar el cronómetro visible
+ // Solo ocultar el spinner
+ const spinner = document.getElementById('loading-spinner');
+ if (spinner) spinner.classList.add('hidden');
+
+ // Cambiar texto de "Procesando..." a "Completado en"
+ const timerText = document.querySelector('#loading p');
+ if (timerText && loadingTimer) {
+ timerText.innerHTML = '⏱️ Completado en <span id="loading-timer" class="text-green-600 dark:text-green-400 font-mono">' + loadingTimer.textContent + '</span>';
+ }
  }
 
  // Capturar envío del formulario INICIA timer
@@ -285,40 +303,135 @@
  }
  }
 
+ let batchFiles = [];
+
  // Multi-file selection
  const multiInput = document.getElementById('multi-file-input');
  const multiList = document.getElementById('multi-files-list');
  const multiProcessBtn = document.getElementById('multi-process-btn');
 
  multiInput.addEventListener('change', function(e) {
- const files = e.target.files;
- if (files.length > 0) {
- multiList.innerHTML = '<p class="font-semibold mb-2">' + files.length + ' archivos seleccionados:</p>';
- for (let i = 0; i < files.length; i++) {
- multiList.innerHTML += '<p>📄 ' + files[i].name + ' (' + (files[i].size/1024).toFixed(0) + ' KB)</p>';
+ batchFiles = Array.from(e.target.files);
+ if (batchFiles.length > 0) {
+ multiList.innerHTML = '<p class="font-semibold mb-2">' + batchFiles.length + ' archivos seleccionados:</p>';
+ for (let i = 0; i < batchFiles.length; i++) {
+ multiList.innerHTML += '<p>📄 ' + batchFiles[i].name + ' (' + (batchFiles[i].size/1024).toFixed(0) + ' KB)</p>';
  }
  multiProcessBtn.classList.remove('hidden');
- multiProcessBtn.querySelector('button').textContent = '⚡ Procesar ' + files.length + ' tickets';
+ multiProcessBtn.querySelector('button').textContent = '⚡ Procesar ' + batchFiles.length + ' tickets';
  }
  });
 
- // Timer para batch
- let batchInterval = null;
- let batchStart = 0;
- document.body.addEventListener('htmx:beforeRequest', function(evt) {
- if (evt.detail.elt.id === 'multi-form') {
- batchStart = Date.now();
- const timer = document.getElementById('batch-timer');
- batchInterval = setInterval(function() {
- const elapsed = (Date.now() - batchStart) / 1000;
- if (timer) timer.textContent = elapsed.toFixed(1) + 's';
+ async function processBatch() {
+ const queue = document.getElementById('batch-queue');
+ const result = document.getElementById('batch-result');
+ queue.classList.remove('hidden');
+ queue.innerHTML = '';
+ result.innerHTML = '';
+ multiProcessBtn.classList.add('hidden');
+
+ let saved = 0;
+ let errors = 0;
+
+ for (let i = 0; i < batchFiles.length; i++) {
+ const file = batchFiles[i];
+
+ // Crear elemento de cola para este archivo
+ const item = document.createElement('div');
+ item.className = 'flex items-center justify-between border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-white dark:bg-darkcanvas-subtle';
+ item.innerHTML = `
+ <div class="flex items-center gap-3">
+ <span class="text-gray-400 text-xl" id="batch-icon-${i}">⏳</span>
+ <div>
+ <p class="font-medium text-sm">${file.name}</p>
+ <p class="text-xs text-fg-muted" id="batch-status-${i}">En cola...</p>
+ </div>
+ </div>
+ <span class="text-xs font-mono text-blue-600 dark:text-accent" id="batch-timer-${i}"></span>
+ `;
+ queue.appendChild(item);
+
+ // Actualizar estado: procesando
+ document.getElementById(`batch-icon-${i}`).textContent = '🔄';
+ document.getElementById(`batch-status-${i}`).textContent = 'Procesando...';
+
+ // Iniciar cronómetro
+ const startTime = Date.now();
+ const timerEl = document.getElementById(`batch-timer-${i}`);
+ const timerInterval = setInterval(() => {
+ const elapsed = (Date.now() - startTime) / 1000;
+ timerEl.textContent = elapsed.toFixed(1) + 's';
  }, 100);
- }
+
+ // Enviar al backend
+ const formData = new FormData();
+ formData.append('image', file);
+
+ try {
+ const response = await fetch('/scan/upload', {
+ method: 'POST',
+ body: formData
  });
- document.body.addEventListener('htmx:afterRequest', function(evt) {
- if (evt.detail.elt.id === 'multi-form') {
- if (batchInterval) { clearInterval(batchInterval); batchInterval = null; }
- }
+
+ clearInterval(timerInterval);
+
+ if (response.ok) {
+ // El backend devuelve HTML (la página de edición)
+ // Extraer datos del HTML
+ const html = await response.text();
+ // Buscar el total y comercio en el HTML
+ const totalMatch = html.match(/id="save-total"\s+value="([^"]+)"/);
+ const merchantMatch = html.match(/id="save-merchant"\s+value="([^"]+)"/);
+ const total = totalMatch ? totalMatch[1] : '?';
+ const merchant = merchantMatch ? merchantMatch[1] : '?';
+
+ // El ticket ya está en scans pero no guardado como transacción
+ // Necesitamos guardarlo automáticamente
+ const scanIdMatch = html.match(/name="scan_id"\s+value="(\d+)"/);
+ const categoryMatch = html.match(/id="save-category"\s+value="(\d+)"/);
+
+ if (scanIdMatch) {
+ const saveResponse = await fetch('/scan/save', {
+ method: 'POST',
+ headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+ body: new URLSearchParams({
+ 'scan_id': scanIdMatch[1],
+ 'date': html.match(/id="save-date"\s+value="([^"]+)"/)?.[1] || '',
+ 'merchant': merchant,
+ 'nif': html.match(/id="save-nif"\s+value="([^"]+)"/)?.[1] || '',
+ 'total': total,
+ 'payment_method': html.match(/id="save-payment"\s+value="([^"]+)"/)?.[1] || '',
+ 'category': categoryMatch ? categoryMatch[1] : '6',
+ })
  });
+ }
+
+ document.getElementById(`batch-icon-${i}`).textContent = '✅';
+ document.getElementById(`batch-status-${i}`).textContent = `${merchant} · ${total}€`;
+ saved++;
+ } else {
+ document.getElementById(`batch-icon-${i}`).textContent = '❌';
+ document.getElementById(`batch-status-${i}`).textContent = 'Error al procesar';
+ errors++;
+ }
+ } catch (err) {
+ clearInterval(timerInterval);
+ document.getElementById(`batch-icon-${i}`).textContent = '❌';
+ document.getElementById(`batch-status-${i}`).textContent = 'Error de conexión';
+ errors++;
+ }
+ }
+
+ // Resultado final
+ result.innerHTML = `
+ <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-white dark:bg-darkcanvas-subtle mb-4">
+ <p class="font-semibold">📊 Resultado: ${saved} guardados, ${errors} errores</p>
+ </div>
+ <div class="flex gap-3">
+ <a href="/scan" class="px-4 py-2 bg-accent text-white rounded font-medium hover:bg-accent-emphasis">📷 Procesar más</a>
+ <a href="/expenses" class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded font-medium hover:bg-canvas-subtle dark:hover:bg-darkcanvas">📁 Ver archivos</a>
+ </div>
+ `;
+}
 </script>
 {% endblock %}
