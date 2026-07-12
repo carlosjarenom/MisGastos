@@ -22,7 +22,7 @@
  {% if total_mes > 0 and total_anterior > 0 %}
  <p class="text-xs mt-1 {% if total_mes > total_anterior %}text-danger{% else %}text-success{% endif %}">
  {% if total_mes > total_anterior %}▲{% else %}▼{% endif %}
- {% set diff_pct = (total_mes - total_anterior) / total_anterior * 100 %}{{ "%.0f"|format(diff_pct if diff_pct >= 0 else -diff_pct) }}% vs mes anterior
+ {% set diff_pct = (total_mes - total_anterior) / total_anterior * 100 %}{{ "%.0f"|format(abs(diff_pct)) }}% vs mes anterior
  </p>
  {% endif %}
  </div>
