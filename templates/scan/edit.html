@@ -250,7 +250,7 @@
         const qtys = document.querySelectorAll('.item-qty-input');
         let sum = 0;
         prices.forEach((p, i) => {
-            sum += parseFloat(p.value || 0) * parseInt(qtys[i].value || 1);
+            sum += parseFloat(p.value || 0) * parseFloat(qtys[i].value || 1);
         });
         document.getElementById('items-sum').textContent = sum.toFixed(2);
         const total = parseFloat(document.getElementById('save-total').value || 0);

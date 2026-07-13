@@ -7,6 +7,8 @@ import sqlite3
 import uuid
 import json
 import calendar
+import shutil
+import requests as req_lib
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify
 from werkzeug.utils import secure_filename
@@ -14,7 +16,7 @@ from models.schema import get_db, init_db
 from services.ocr import extract_ticket
 from services.classifier import clasificar_por_items, clasificar_por_comercio, clasificar_por_comercio_override
 from services.excel import import_excel, export_excel
-from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
+from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH, CATEGORIES
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
@@ -58,9 +60,7 @@ def is_thinking_enabled() -> bool:
 
 
 # Mapeo de nombres de categoría a IDs (para sugerencia del VLM)
-CATEGORY_NAME_TO_ID = {
-    "Comida": 1, "Ropa": 2, "Farmacia": 3, "Carburante": 4, "Banco": 5, "Otros": 6,
-}
+CATEGORY_NAME_TO_ID = {cat[1]: cat[0] for cat in CATEGORIES}
 
 
 # ============================================================
@@ -71,6 +71,11 @@ MESES_ES = [
     'ene', 'feb', 'mar', 'abr', 'may', 'jun',
     'jul', 'ago', 'sep', 'oct', 'nov', 'dic'
 ]
+
+
+@app.context_processor
+def inject_globals():
+    return {'abs': abs}
 
 
 @app.template_filter('format_date_es')
@@ -89,15 +94,6 @@ def format_date_es(value):
         return f"{d.day} {MESES_ES[d.month - 1]} {d.year}"
     except (ValueError, TypeError):
         return value
-
-
-# ============================================================
-# INICIALIZACIÓN
-# ============================================================
-
-@app.before_request
-def ensure_db():
-    init_db()
 
 
 # ============================================================
@@ -305,7 +301,6 @@ def scan_upload():
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -343,7 +338,6 @@ def scan_upload_batch():
     thinking = is_thinking_enabled()
 
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'color': cat[3]})
 
@@ -576,31 +570,16 @@ def scan_save():
                 qty = 1.0
             if desc and price > 0:
                 items_sum += price * qty
+                # Insertar en transaction_items y products (historial de precios)
                 c.execute("""
                     INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                     VALUES (?, ?, ?, ?, ?)
                 """, (txn_id, desc, qty, price, data["category_id"]))
 
-    # Guardar items también en tabla products (historial de precios)
-    if deep:
-        for i in range(len(item_descs)):
-            desc = item_descs[i].strip()
-            try:
-                price = float(item_prices[i])
-            except (ValueError, IndexError):
-                price = 0
-            try:
-                qty = float(item_quants[i])
-            except (ValueError, IndexError):
-                qty = 1.0
-            if desc and price > 0:
-                # precio del OCR = precio UNITARIO (no total)
-                # Para gasolina: precio = €/litro, cantidad = litros
-                unit_price = price
                 c.execute("""
                     INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                     VALUES (?, ?, ?, ?, ?)
-                """, (desc, unit_price, data["date"], txn_id, merchant_id))
+                """, (desc, price, data["date"], txn_id, merchant_id))
 
     # Actualizar scan → vincular a transacción + marcar como guardado
     if data["scan_id"]:
@@ -819,7 +798,10 @@ def edit_expense(txn_id):
 
     if request.method == "POST":
         new_date = request.form.get("date", txn['date'])
-        new_total = float(request.form.get("total", txn['total']))
+        try:
+            new_total = float(request.form.get("total", txn['total']))
+        except (ValueError, TypeError):
+            new_total = txn['total']
         new_category = int(request.form.get("category", txn['category_id']))
         new_merchant = request.form.get("merchant", txn['merchant_name']).strip()
         new_payment = request.form.get("payment_method", txn['payment_method']) or None
@@ -893,15 +875,18 @@ def delete_expense(txn_id):
     conn.commit()
     conn.close()
 
-    # O8: Borrar imagen del disco
+    # O8: Borrar imagen del disco y todas sus variantes
     if image_path:
         full_path = os.path.join(UPLOAD_DIR, image_path)
         if os.path.exists(full_path):
             os.remove(full_path)
+
+        # Borrar variantes: _processed, _current, _enhanced, _rot90, _rot180, _rot270
         base, _ = os.path.splitext(full_path)
-        processed = base + "_processed.jpg"
-        if os.path.exists(processed):
-            os.remove(processed)
+        for suffix in ['_processed', '_current', '_enhanced', '_rot90', '_rot180', '_rot270']:
+            variant = base + suffix + ".jpg"
+            if os.path.exists(variant):
+                os.remove(variant)
 
     return redirect(url_for("expenses"))
 
@@ -992,7 +977,6 @@ def edit_pending_scan(scan_id):
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -1288,7 +1272,6 @@ def new_expense_manual():
     conn = get_db()
     c = conn.cursor()
 
-    from config import CATEGORIES
     all_categories = []
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1],
@@ -1362,30 +1345,16 @@ def new_expense_manual():
                 except (ValueError, IndexError):
                     qty = 1.0
                 if desc and price > 0:
+                    # Insertar en transaction_items y products (historial de precios)
                     c.execute("""
                         INSERT INTO transaction_items (transaction_id, description, quantity, unit_price, category_id)
                         VALUES (?, ?, ?, ?, ?)
                     """, (txn_id, desc, qty, price, category_id))
 
-        # Guardar items también en tabla products (historial de precios)
-        if deep:
-            for i in range(len(item_descs)):
-                desc = item_descs[i].strip()
-                try:
-                    price = float(item_prices[i])
-                except (ValueError, IndexError):
-                    price = 0
-                try:
-                    qty = float(item_quants[i])
-                except (ValueError, IndexError):
-                    qty = 1.0
-                if desc and price > 0:
-                    # precio del form = precio UNITARIO (no total)
-                    unit_price = price
                     c.execute("""
                         INSERT INTO products (name, unit_price, date, transaction_id, merchant_id)
                         VALUES (?, ?, ?, ?, ?)
-                    """, (desc, unit_price, date_val, txn_id, merchant_id))
+                    """, (desc, price, date_val, txn_id, merchant_id))
 
         conn.commit()
         conn.close()
@@ -1458,9 +1427,6 @@ def export_excel_route():
 @app.route("/health")
 def health():
     """Health check — verifica DB, VLM y disco."""
-    import shutil
-    import requests as req_lib
-
     # DB check
     db_ok = False
     try:

@@ -5,6 +5,7 @@ import json
 import base64
 import time
 import logging
+import re
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
@@ -192,8 +193,6 @@ def _clean_json_response(raw: str) -> str:
 
     Esta función extrae solo el JSON válido.
     """
-    import re
-
     if not raw:
         return ""
 

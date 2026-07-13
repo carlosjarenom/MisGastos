@@ -321,7 +321,7 @@ CREATE TABLE transactions (
 );
 
 -- Items individuales de un ticket
-CREATE TABLE expense_items (
+CREATE TABLE transaction_items (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     transaction_id INTEGER REFERENCES transactions(id),
     description TEXT NOT NULL,
