@@ -146,7 +146,7 @@ function recalcSum() {
  const prices = document.querySelectorAll('input[name="item_price[]"]');
  const qtys = document.querySelectorAll('input[name="item_qty[]"]');
  prices.forEach((p, i) => {
- sum += parseFloat(p.value || 0) * parseInt(qtys[i].value || 1);
+ sum += parseFloat(p.value || 0) * parseFloat(qtys[i].value || 1);
  });
  document.getElementById('items-sum').textContent = sum.toFixed(2);
 }
