@@ -5,10 +5,12 @@ import json
 import base64
 import time
 import logging
+import re
+import requests
 from dataclasses import dataclass
 from services.llama_client import call_vlm
 from services.image_processor import preprocess_image
-from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS
+from config import DOUBLE_CHECK_THRESHOLD, LLAMA_MAX_TOKENS, LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE
 
 log = logging.getLogger(__name__)
 
@@ -192,8 +194,6 @@ def _clean_json_response(raw: str) -> str:
 
     Esta función extrae solo el JSON válido.
     """
-    import re
-
     if not raw:
         return ""
 
@@ -343,9 +343,6 @@ def _call_vlm_direct(image_path: str, img_b64: str, deep_analysis: bool = True, 
     Algunas versiones de la librería openai manipulan el base64
     y rompen el formato. Usar requests directamente es más fiable.
     """
-    import requests
-    from config import LLAMA_ENDPOINT, LLAMA_MODEL, LLAMA_TEMPERATURE
-
     data_uri = f"data:image/jpeg;base64,{img_b64}"
 
     system_prompt = SYSTEM_PROMPT if deep_analysis else SYSTEM_PROMPT_FAST
