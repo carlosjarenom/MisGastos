@@ -7,14 +7,17 @@ import sqlite3
 import uuid
 import json
 import calendar
+import shutil
+import requests as req_lib
 from datetime import datetime, date
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory, send_file, jsonify
 from werkzeug.utils import secure_filename
 from models.schema import get_db, init_db
 from services.ocr import extract_ticket
 from services.classifier import clasificar_por_items, clasificar_por_comercio, clasificar_por_comercio_override
-from services.excel import import_excel, export_excel
-from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH
+from services.excel import import_excel, export_excel, export_month_excel
+from services.image_processor import rotate_image, enhance_image
+from config import UPLOAD_DIR, FLASK_HOST, FLASK_PORT, DB_PATH, CATEGORIES, LLAMA_ENDPOINT
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_DIR
@@ -58,9 +61,8 @@ def is_thinking_enabled() -> bool:
 
 
 # Mapeo de nombres de categoría a IDs (para sugerencia del VLM)
-CATEGORY_NAME_TO_ID = {
-    "Comida": 1, "Ropa": 2, "Farmacia": 3, "Carburante": 4, "Banco": 5, "Otros": 6,
-}
+from config import CATEGORIES
+CATEGORY_NAME_TO_ID = {cat[1]: cat[0] for cat in CATEGORIES}
 
 
 # ============================================================
@@ -95,8 +97,7 @@ def format_date_es(value):
 # INICIALIZACIÓN
 # ============================================================
 
-@app.before_request
-def ensure_db():
+with app.app_context():
     init_db()
 
 
@@ -281,7 +282,7 @@ def scan_upload():
         auto_cat_id, _ = clasificar_por_items(result.items)
 
     if auto_cat_id is None:
-        auto_cat_id = 6  # Otros
+        auto_cat_id = CATEGORY_NAME_TO_ID.get("Otros", 6)
 
     # Guardar en scans
     conn = get_db()
@@ -305,7 +306,6 @@ def scan_upload():
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -343,7 +343,6 @@ def scan_upload_batch():
     thinking = is_thinking_enabled()
 
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'color': cat[3]})
 
@@ -387,7 +386,7 @@ def scan_upload_batch():
         if auto_cat_id is None and result.items:
             auto_cat_id, _ = clasificar_por_items(result.items)
         if auto_cat_id is None:
-            auto_cat_id = 6  # Otros
+            auto_cat_id = CATEGORY_NAME_TO_ID.get("Otros", 6)
 
         # Guardar en DB automáticamente (sin revisión)
         conn = get_db()
@@ -819,7 +818,10 @@ def edit_expense(txn_id):
 
     if request.method == "POST":
         new_date = request.form.get("date", txn['date'])
-        new_total = float(request.form.get("total", txn['total']))
+        try:
+            new_total = float(request.form.get("total", txn['total']))
+        except (ValueError, TypeError):
+            new_total = txn['total']
         new_category = int(request.form.get("category", txn['category_id']))
         new_merchant = request.form.get("merchant", txn['merchant_name']).strip()
         new_payment = request.form.get("payment_method", txn['payment_method']) or None
@@ -898,10 +900,13 @@ def delete_expense(txn_id):
         full_path = os.path.join(UPLOAD_DIR, image_path)
         if os.path.exists(full_path):
             os.remove(full_path)
+        # Borrar variantes
         base, _ = os.path.splitext(full_path)
-        processed = base + "_processed.jpg"
-        if os.path.exists(processed):
-            os.remove(processed)
+        variants = ["_processed.jpg", "_current.jpg", "_enhanced.jpg", "_rot90.jpg", "_rot180.jpg", "_rot270.jpg"]
+        for v in variants:
+            v_path = base + v
+            if os.path.exists(v_path):
+                os.remove(v_path)
 
     return redirect(url_for("expenses"))
 
@@ -988,11 +993,10 @@ def edit_pending_scan(scan_id):
         auto_cat_id, _ = clasificar_por_items(items)
 
     if auto_cat_id is None:
-        auto_cat_id = 6  # Otros
+        auto_cat_id = CATEGORY_NAME_TO_ID.get("Otros", 6)
 
     # Todas las categorías disponibles
     all_categories = []
-    from config import CATEGORIES
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1], 'parent_id': cat[2], 'color': cat[3]})
 
@@ -1069,7 +1073,6 @@ def rotate_scan(scan_id, degrees):
         return "Imagen no encontrada en disco", 404
 
     try:
-        from services.image_processor import rotate_image
         rotated_path = rotate_image(image_path, degrees)
         rotated_filename = os.path.basename(rotated_path)
         c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
@@ -1104,7 +1107,7 @@ def rotate_scan(scan_id, degrees):
     if auto_cat_id is None and result.items:
         auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
-        auto_cat_id = 6  # Otros
+        auto_cat_id = CATEGORY_NAME_TO_ID.get("Otros", 6)
 
     conn = get_db()
     c = conn.cursor()
@@ -1140,7 +1143,6 @@ def enhance_scan(scan_id):
         return "Imagen no encontrada en disco", 404
 
     try:
-        from services.image_processor import enhance_image
         enhanced_path = enhance_image(image_path)
         enhanced_filename = os.path.basename(enhanced_path)
         c.execute("UPDATE scans SET image_path = ? WHERE id = ?",
@@ -1175,7 +1177,7 @@ def enhance_scan(scan_id):
     if auto_cat_id is None and result.items:
         auto_cat_id, _ = clasificar_por_items(result.items)
     if auto_cat_id is None:
-        auto_cat_id = 6  # Otros
+        auto_cat_id = CATEGORY_NAME_TO_ID.get("Otros", 6)
 
     conn = get_db()
     c = conn.cursor()
@@ -1240,7 +1242,7 @@ def manage_merchants():
     if request.method == "POST":
         merchant_id = request.form.get("merchant_id")
         name = request.form.get("name", "").strip()
-        category_id = request.form.get("category_id", 9)
+        category_id = request.form.get("category_id", CATEGORY_NAME_TO_ID.get("Otros", 6))
 
         conn = get_db()
         c = conn.cursor()
@@ -1288,7 +1290,6 @@ def new_expense_manual():
     conn = get_db()
     c = conn.cursor()
 
-    from config import CATEGORIES
     all_categories = []
     for cat in CATEGORIES:
         all_categories.append({'id': cat[0], 'name': cat[1],
@@ -1433,10 +1434,8 @@ def export_excel_route():
     """Exportar a Excel."""
     month = request.args.get("month")
     year = request.args.get("year")
-    import os
 
     if year and month:
-        from services.excel import export_month_excel
         path = export_month_excel(year=year, month=month)
         filename = f"gastos_{year}_{month}.xlsx"
     else:
@@ -1458,8 +1457,6 @@ def export_excel_route():
 @app.route("/health")
 def health():
     """Health check — verifica DB, VLM y disco."""
-    import shutil
-    import requests as req_lib
 
     # DB check
     db_ok = False
@@ -1474,7 +1471,6 @@ def health():
     # VLM check
     vlm_ok = False
     try:
-        from config import LLAMA_ENDPOINT
         r = req_lib.get(f"{LLAMA_ENDPOINT}/models", timeout=2)
         vlm_ok = r.status_code == 200
     except Exception:

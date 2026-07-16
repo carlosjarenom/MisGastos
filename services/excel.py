@@ -1,8 +1,13 @@
 """
 services/excel.py — Import/Export de Excel
 """
+import os
 import openpyxl
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 from models.schema import get_db
+from config import BASE_DIR
 
 
 def import_excel(filepath: str) -> dict:
@@ -25,9 +30,6 @@ def export_excel(month: str = None, year: str = None) -> str:
     """Exportar datos a Excel (formato compatible con Sonia).
     Retorna: path al archivo generado.
     """
-    from config import BASE_DIR
-    import os
-
     conn = get_db()
     c = conn.cursor()
 
@@ -74,12 +76,6 @@ def export_month_excel(year: str, month: str) -> str:
     - Total con fórmula SUM
     - Anchos de columna automáticos
     """
-    import os
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-    from openpyxl.utils import get_column_letter
-    from config import BASE_DIR
-
     meses_es = {'01': 'Enero', '02': 'Febrero', '03': 'Marzo', '04': 'Abril',
                 '05': 'Mayo', '06': 'Junio', '07': 'Julio', '08': 'Agosto',
                 '09': 'Septiembre', '10': 'Octubre', '11': 'Noviembre', '12': 'Diciembre'}
