@@ -149,15 +149,20 @@ def init_db():
             cat
         )
 
-    # FIX 25A: Limpiar categorías viejas y asegurar las 6 nuevas
-    # Eliminar categorías que ya no existen
-    valid_ids = [1, 2, 3, 4, 5, 6]
-    valid_ids_str = ",".join(map(str, valid_ids))
-    c.execute("DELETE FROM categories WHERE id NOT IN (" + valid_ids_str + ")")
-    # Actualizar transacciones que apuntan a categorías viejas
-    c.execute("UPDATE transactions SET category_id = 6 WHERE category_id NOT IN (" + valid_ids_str + ")")
-    # Actualizar items de transacciones
-    c.execute("UPDATE transaction_items SET category_id = 6 WHERE category_id NOT IN (" + valid_ids_str + ")")
+    # FIX 25A: Limpiar categorías viejas y asegurar las vigentes
+    valid_ids = [cat[0] for cat in CATEGORIES]
+    fallback_id = 6  # Por defecto Otros
+    for cat in CATEGORIES:
+        if cat[1] == "Otros":
+            fallback_id = cat[0]
+            break
+
+    if valid_ids:
+        valid_ids_str = ",".join(map(str, valid_ids))
+        c.execute(f"DELETE FROM categories WHERE id NOT IN ({valid_ids_str})")
+        # Actualizar transacciones e items que apuntan a categorías obsoletas
+        c.execute(f"UPDATE transactions SET category_id = ? WHERE category_id NOT IN ({valid_ids_str})", (fallback_id,))
+        c.execute(f"UPDATE transaction_items SET category_id = ? WHERE category_id NOT IN ({valid_ids_str})", (fallback_id,))
 
     # FIX 18: Migrar quantity de INTEGER a REAL en transaction_items
     # SQLite no soporta ALTER COLUMN, así que recrear la tabla

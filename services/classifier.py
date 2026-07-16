@@ -3,6 +3,7 @@ services/classifier.py — Clasificación en cascada
 """
 from collections import defaultdict
 import unicodedata
+import json
 
 # Comercios que SIEMPRE son de una categoría concreta
 MERCHANT_CATEGORY_OVERRIDES = {
@@ -72,10 +73,8 @@ KEYWORDS = {
 }
 
 # Mapeo nombre → categoría ID
-CATEGORY_MAP = {
-    "Comida": 1, "Ropa": 2, "Farmacia": 3,
-    "Carburante": 4, "Banco": 5, "Otros": 6,
-}
+from config import CATEGORIES
+CATEGORY_MAP = {cat[1]: cat[0] for cat in CATEGORIES}
 
 
 def clasificar_por_items(items: list[dict]) -> tuple[int, float]:
@@ -124,8 +123,7 @@ def clasificar_por_comercio(merchant_name: str, merchant_db=None) -> int | None:
                 return merchant["category_id"]
             # Check aliases
             if merchant.get("aliases"):
-                import json as j
-                aliases = j.loads(merchant["aliases"]) if isinstance(merchant["aliases"], str) else merchant["aliases"]
+                aliases = json.loads(merchant["aliases"]) if isinstance(merchant["aliases"], str) else merchant["aliases"]
                 for alias in aliases:
                     if name_lower in alias.lower():
                         return merchant["category_id"]
